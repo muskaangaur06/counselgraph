@@ -1,0 +1,72 @@
+[
+  {
+    "clause_type": "termination",
+    "title": "Standard Termination for Convenience",
+    "approved_text": "Either Party may terminate this Agreement for convenience upon sixty (60) days' prior written notice to the other Party. Either Party may terminate immediately upon a material breach that remains uncured for thirty (30) days following written notice of such breach.",
+    "business_unit": "General",
+    "jurisdiction": "India",
+    "approval_date": "2025-04-01",
+    "owner": "Legal Operations",
+    "notes": "Baseline position for vendor and service agreements. Notice period may be negotiated between 30-90 days depending on contract value."
+  },
+  {
+    "clause_type": "limitation_of_liability",
+    "title": "Standard Liability Cap",
+    "approved_text": "Except for breaches of the Confidentiality clause, in no event shall either Party's aggregate liability arising out of or related to this Agreement exceed the total fees paid in the twelve (12) months preceding the claim. Neither Party shall be liable for indirect, incidental, special, or consequential damages.",
+    "business_unit": "General",
+    "jurisdiction": "India",
+    "approval_date": "2025-04-01",
+    "owner": "Legal Operations",
+    "notes": "Any cap below 12 months of fees, or any clause removing the cap entirely, should be flagged high risk."
+  },
+  {
+    "clause_type": "confidentiality",
+    "title": "Standard Confidentiality with 5-Year Survival",
+    "approved_text": "Each Party agrees to hold in confidence all non-public technical, business, and financial information disclosed by the other Party, and shall not disclose such information to any third party without prior written consent, except as required by law. This obligation shall survive termination of this Agreement for a period of five (5) years.",
+    "business_unit": "General",
+    "jurisdiction": "India",
+    "approval_date": "2025-04-01",
+    "owner": "Legal Operations",
+    "notes": "Survival periods under 2 years should be flagged for review."
+  },
+  {
+    "clause_type": "data_protection",
+    "title": "Standard Data Protection Clause (DPDP Act Aligned)",
+    "approved_text": "Vendor shall implement and maintain commercially reasonable administrative, technical, and physical safeguards designed to protect Client Data against unauthorized access, use, or disclosure, consistent with applicable data protection laws including the Digital Personal Data Protection Act, 2023. Vendor shall promptly notify Client of any data breach affecting Client Data.",
+    "business_unit": "General",
+    "jurisdiction": "India",
+    "approval_date": "2025-05-15",
+    "owner": "Compliance",
+    "notes": "Required for any vendor with access to personal data of employees, customers, or partners. Missing breach-notification language should be flagged."
+  },
+  {
+    "clause_type": "indemnification",
+    "title": "Standard Mutual Indemnification",
+    "approved_text": "Each Party shall indemnify, defend, and hold harmless the other Party from any third-party claims arising from the indemnifying Party's gross negligence or willful misconduct in the performance of its obligations under this Agreement.",
+    "business_unit": "General",
+    "jurisdiction": "India",
+    "approval_date": "2025-04-01",
+    "owner": "Legal Operations",
+    "notes": "One-sided indemnification (only the vendor or only the client is obligated) should be flagged as high risk."
+  },
+  {
+    "clause_type": "governing_law",
+    "title": "Standard Governing Law and Arbitration",
+    "approved_text": "This Agreement shall be governed by and construed in accordance with the laws of India. Any dispute arising out of or in connection with this Agreement shall be resolved through arbitration seated in Mumbai, in accordance with the Arbitration and Conciliation Act, 1996.",
+    "business_unit": "General",
+    "jurisdiction": "India",
+    "approval_date": "2025-04-01",
+    "owner": "Legal Operations",
+    "notes": "Foreign governing law or a foreign arbitration seat for domestic vendor contracts should be flagged for review."
+  },
+  {
+    "clause_type": "audit_rights",
+    "title": "Standard Audit Rights",
+    "approved_text": "Client shall have the right, upon reasonable prior notice and no more than once per twelve (12) month period, to audit Vendor's compliance with its security, data protection, and confidentiality obligations under this Agreement.",
+    "business_unit": "General",
+    "jurisdiction": "India",
+    "approval_date": "2025-05-15",
+    "owner": "Compliance",
+    "notes": "Recommended for any contract involving data access, subcontracting, or critical vendor status."
+  }
+]

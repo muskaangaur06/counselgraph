@@ -1,0 +1,52 @@
+[
+  {
+    "policy_id": "POL-VENDOR-001",
+    "title": "Vendor Data Handling Policy",
+    "category": "data_protection",
+    "summary": "Any vendor with access to personal data of employees, customers, or partners must have a written data protection clause aligned with the Digital Personal Data Protection Act, 2023, including breach notification within 72 hours.",
+    "applies_to": ["data_protection", "confidentiality"],
+    "version": "2.1",
+    "approved_date": "2025-06-01",
+    "owner": "Compliance"
+  },
+  {
+    "policy_id": "POL-LEGAL-014",
+    "title": "Liability Cap Guidance",
+    "category": "limitation_of_liability",
+    "summary": "Standard vendor contracts should cap aggregate liability at 12 months of fees paid. Any deviation below this floor, or any uncapped liability clause, requires senior legal sign-off before execution.",
+    "applies_to": ["limitation_of_liability"],
+    "version": "1.4",
+    "approved_date": "2025-03-10",
+    "owner": "Legal Operations"
+  },
+  {
+    "policy_id": "POL-LEGAL-009",
+    "title": "Termination Rights Guidance",
+    "category": "termination",
+    "summary": "All vendor and service agreements must include a termination-for-convenience right with a notice period between 30 and 90 days, and a termination-for-cause right with a cure period of at least 30 days.",
+    "applies_to": ["termination"],
+    "version": "1.2",
+    "approved_date": "2025-02-20",
+    "owner": "Legal Operations"
+  },
+  {
+    "policy_id": "POL-COMPLIANCE-022",
+    "title": "Governing Law and Dispute Resolution Guidance",
+    "category": "governing_law",
+    "summary": "Domestic vendor agreements should specify Indian governing law and an Indian arbitration seat unless the vendor is a critical foreign supplier, in which case regional legal must approve the alternate jurisdiction.",
+    "applies_to": ["governing_law"],
+    "version": "1.0",
+    "approved_date": "2025-01-15",
+    "owner": "Compliance"
+  },
+  {
+    "policy_id": "POL-VENDOR-007",
+    "title": "Confidentiality Survival Guidance",
+    "category": "confidentiality",
+    "summary": "Confidentiality obligations should survive contract termination for at least 5 years for commercially sensitive information. Shorter survival periods should be escalated for business justification.",
+    "applies_to": ["confidentiality"],
+    "version": "1.1",
+    "approved_date": "2025-04-05",
+    "owner": "Legal Operations"
+  }
+]

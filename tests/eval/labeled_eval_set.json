@@ -1,0 +1,111 @@
+{
+  "description": "Hand-labeled expected clauses and risk flags for the sample contracts in data/sample_contracts. Used by tests/eval/run_eval.py to score the pipeline's clause recall and risk-flag precision against a known-correct answer.",
+  "documents": [
+    {
+      "filename": "sample_vendor_agreement.pdf",
+      "contract_type": "service",
+      "expected_clause_types": [
+        "termination",
+        "confidentiality",
+        "liability_cap",
+        "indemnification",
+        "data_protection",
+        "governing_law",
+        "payment_terms",
+        "assignment"
+      ],
+      "expected_high_risk_clause_types": [
+        "liability_cap"
+      ],
+      "expected_missing_clauses": [],
+      "notes": "All expected clauses are present in the source PDF text. liability_cap is expected to be flagged high risk because the cap (12 months of fees) is at the low end of what the risk taxonomy considers adequate."
+    },
+    {
+      "filename": "sample_mutual_nda.pdf",
+      "contract_type": "nda",
+      "expected_clause_types": [
+        "confidentiality",
+        "governing_law"
+      ],
+      "expected_high_risk_clause_types": [
+        "confidentiality"
+      ],
+      "expected_missing_clauses": [
+        "termination",
+        "liability_cap"
+      ],
+      "notes": "This NDA intentionally has only a 1-year confidentiality survival period (short, per risk_taxonomy.csv 'Short Confidentiality Survival') and a Delaware governing-law clause (foreign jurisdiction relative to the other sample contracts). It has no termination-for-convenience clause and no liability cap clause at all, both flagged as missing by design."
+    },
+    {
+      "filename": "conflict_pair_a_short_notice.pdf",
+      "contract_type": "service",
+      "expected_clause_types": ["termination", "confidentiality", "governing_law"],
+      "expected_high_risk_clause_types": [],
+      "expected_missing_clauses": ["liability_cap"],
+      "anomaly_type": "cross_portfolio_conflict",
+      "conflict_pair_with": "conflict_pair_b_long_notice.pdf",
+      "expected_conflict_clause_type": "termination",
+      "notes": "Pairs with conflict_pair_b_long_notice.pdf (same counterparty: Vendor Company A / Vendor Company B) with a 30-day termination notice period vs the other document's 90-day period, feeding section 6's cross-portfolio conflict detection."
+    },
+    {
+      "filename": "conflict_pair_b_long_notice.pdf",
+      "contract_type": "supply",
+      "expected_clause_types": ["termination", "confidentiality", "governing_law"],
+      "expected_high_risk_clause_types": [],
+      "expected_missing_clauses": ["liability_cap"],
+      "anomaly_type": "cross_portfolio_conflict",
+      "conflict_pair_with": "conflict_pair_a_short_notice.pdf",
+      "expected_conflict_clause_type": "termination",
+      "notes": "Pairs with conflict_pair_a_short_notice.pdf, 90-day termination notice vs the other document's 30-day notice."
+    },
+    {
+      "filename": "duplicate_clause_contract.pdf",
+      "contract_type": "service",
+      "expected_clause_types": ["confidentiality", "termination", "liability_cap", "governing_law"],
+      "expected_high_risk_clause_types": [],
+      "expected_missing_clauses": [],
+      "anomaly_type": "duplicate_clause_dedup",
+      "expected_duplicate_clause_type": "confidentiality",
+      "notes": "The same confidentiality clause appears near-verbatim in section 1 and section 4 ('Confidentiality (Restated)'). Tests section 2's content_hash-based dedup: re-ingesting this document should upsert rather than create two separate confidentiality clause rows with identical normalized content."
+    },
+    {
+      "filename": "unusual_governing_law_contract.pdf",
+      "contract_type": "outsourcing",
+      "expected_clause_types": ["termination", "confidentiality", "liability_cap", "indemnification", "governing_law"],
+      "expected_high_risk_clause_types": [],
+      "expected_missing_clauses": [],
+      "anomaly_type": "unusual_governing_law",
+      "expected_governing_law_country": "KY",
+      "notes": "Governing law is set to the Cayman Islands, an unexpected jurisdiction relative to an org profile whose jurisdiction_defaults.governing_law_country is 'IN' (both seeded org profiles default to IN). Should be flagged 'Unfavorable Governing Law' per risk_taxonomy.csv."
+    },
+    {
+      "filename": "ambiguous_liability_contract.pdf",
+      "contract_type": "maintenance",
+      "expected_clause_types": ["termination", "confidentiality", "liability_cap", "governing_law"],
+      "expected_high_risk_clause_types": ["liability_cap"],
+      "expected_missing_clauses": [],
+      "anomaly_type": "ambiguous_liability_language",
+      "notes": "The liability cap clause uses vague non-standard wording ('a reasonable amount having regard to the circumstances') instead of a clean numeric cap, which should be flagged as high risk (no enforceable cap) and/or 'Non-Standard Wording' per risk_taxonomy.csv. Also expected to score a low org-profile deviation_score (section 4) against the approved liability_cap language, since there is no comparable numeric cap to align on."
+    },
+    {
+      "filename": "poor_quality_scanned_nda.pdf",
+      "contract_type": "nda",
+      "expected_clause_types": ["confidentiality", "governing_law", "termination"],
+      "expected_high_risk_clause_types": [],
+      "expected_missing_clauses": ["liability_cap"],
+      "anomaly_type": "scanned_no_text_layer",
+      "requires_ocr": false,
+      "notes": "Low-DPI (100 DPI) rendered image with no embedded PDF text layer at all (0 chars extracted by pdfplumber). Must go through detect_low_text_pages -> ocr_pages -> merge_ocr_results to recover any clause text. requires_ocr is false here because this repo's local eval environment doesn't have poppler/tesseract on PATH; the Docker image (see Dockerfile) installs both, so set this to true when running the eval inside that container to genuinely exercise OCR recovery. With OCR skipped, 0 clauses found here is expected/correct behavior for that code path, not a scoring failure."
+    },
+    {
+      "filename": "long_contract_with_pricing_schedule.pdf",
+      "contract_type": "supply",
+      "expected_clause_types": ["termination", "confidentiality", "liability_cap", "indemnification", "governing_law", "audit_rights"],
+      "expected_high_risk_clause_types": [],
+      "expected_missing_clauses": [],
+      "anomaly_type": "embedded_pricing_table",
+      "expected_table_count": 1,
+      "notes": "Schedule A is a ReportLab platypus Table (9 rows x 5 columns: item code, description, unit price, minimum order quantity, lead time) on page 2, rendered with real grid lines so pdfplumber's extract_tables() should recover it as one table, not flatten it into clause text."
+    }
+  ]
+}

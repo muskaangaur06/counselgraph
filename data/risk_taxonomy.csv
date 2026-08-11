@@ -1,0 +1,13 @@
+risk_category,severity,description,typical_clause_types,recommended_reviewer_action
+Unlimited Liability,high,No cap on liability exposure or liability cap set unreasonably high relative to contract value,limitation_of_liability,Escalate to senior counsel for renegotiation of liability cap
+Missing Termination Rights,high,Contract does not give the client a termination-for-convenience or termination-for-cause right,termination,Flag for legal review before signature
+One-Sided Indemnification,high,Indemnification obligations run only one way or are broader than industry norm,indemnification,Escalate to senior counsel
+Broad Data Access Without Safeguards,high,Vendor granted broad access to personal or confidential data without corresponding security/DPA obligations,data_protection,Escalate to compliance and security teams
+Unfavorable Governing Law,medium,Governing law or dispute forum is in an unfamiliar or unfavorable jurisdiction,governing_law,Flag for legal review
+Short Confidentiality Survival,medium,Confidentiality obligations expire too soon after termination (e.g. under 2 years),confidentiality,Flag for legal review
+Automatic Renewal Without Notice Window,medium,Contract auto-renews without a clear opt-out notice period,renewal,Flag for legal review
+Ambiguous Payment Terms,medium,Payment schedule, late fees, or currency terms are unclear or inconsistent,payment,Flag for reviewer clarification
+Vague Service Levels,medium,No measurable SLAs or remedies for non-performance,audit_rights,Flag for reviewer clarification
+Non-Standard Wording,low,Clause uses non-standard legal language that deviates from approved templates without clear reason,other,Note for reviewer awareness
+Missing Audit Rights,low,No provision allowing the client to audit vendor compliance or security practices,audit_rights,Note for reviewer awareness
+Assignment Without Consent,low,Either party may assign the contract without requiring the other's consent,other,Note for reviewer awareness

@@ -1,0 +1,1223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Legal GraphRAG (Case File)</title>
+<style>
+  :root {
+    --bg-deep: #14110d;
+    --paper: rgba(255,255,255,0.035);
+    --paper-2: rgba(0,0,0,0.18);
+    --paper-line: rgba(233,226,211,0.09);
+    --ink: #e9e2d3;
+    --ink-soft: rgba(233,226,211,0.5);
+    --ink-faint: rgba(233,226,211,0.32);
+    --rule: rgba(233,226,211,0.12);
+    --maroon: #b3453a;
+    --maroon-bright: #e0968a;
+    --maroon-soft: rgba(179,69,58,0.18);
+    --maroon-border: rgba(179,69,58,0.45);
+    --olive: #8fd19e;
+    --olive-soft: rgba(143,209,158,0.14);
+    --olive-border: rgba(143,209,158,0.4);
+    --ochre: #e0b45a;
+    --ochre-soft: rgba(224,180,90,0.15);
+    --ochre-border: rgba(224,180,90,0.4);
+    --mono: "Courier New", Consolas, monospace;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; overflow-x: hidden; }
+  body {
+    margin: 0; font-family: var(--serif); color: var(--ink);
+    background: var(--bg-deep);
+    min-height: 100vh;
+  }
+
+  .folio {
+    width: 100%; min-height: 100vh;
+    background: #191510;
+  }
+
+  /* masthead */
+  .masthead {
+    background: #241a17;
+    color: var(--ink); padding: 22px 36px; display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1px solid var(--rule);
+  }
+  .masthead .title-block { display: flex; align-items: baseline; gap: 14px; }
+  .masthead h1 { font-size: 28.2px; font-weight: 400; margin: 0; letter-spacing: 0.01em; color: #f4efe4; }
+  .masthead .matter-no {
+    font-family: var(--mono); font-size: 14.1px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .masthead .status-pill {
+    font-family: var(--sans); font-size: 14.1px; font-weight: 600; padding: 4px 12px; border-radius: 2px;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--rule);
+    display: inline-flex; align-items: center; gap: 6px; color: var(--ink-soft);
+  }
+  .masthead .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--maroon-bright); }
+  .masthead .status-pill.online { background: var(--olive-soft); border-color: var(--olive-border); color: var(--olive); }
+  .masthead .status-pill.online .dot { background: var(--olive); }
+
+  /* folder tabs */
+  .tab-row { display: flex; background: var(--paper-2); border-bottom: 1px solid var(--rule); padding: 0 20px; }
+  .tab {
+    padding: 13px 22px; font-family: var(--sans); font-size: 16.6px; font-weight: 600; cursor: pointer;
+    color: var(--ink-soft); position: relative; user-select: none;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: var(--maroon-bright); border-bottom: 2px solid var(--maroon); margin-bottom: -1px; }
+
+  .apikey-row {
+    display: flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--paper-2);
+    border-bottom: 1px solid var(--rule); font-family: var(--sans);
+  }
+  .apikey-row label {
+    font-size: 13.4px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .apikey-row input {
+    font-family: var(--mono); font-size: 15.4px; padding: 5px 8px; border: 1px solid var(--rule);
+    background: rgba(0,0,0,0.2); color: var(--ink); border-radius: 2px; width: 320px; max-width: 100%; flex: 0 0 auto;
+  }
+
+  .view { display: none; padding: 30px 40px 70px; }
+  .view.active { display: block; }
+  .view-inner { max-width: 1200px; margin: 0 auto; }
+
+  .doc-title { font-size: 33.3px; font-weight: 400; margin: 0 0 4px; text-wrap: balance; color: #f4efe4; }
+  .doc-sub { font-family: var(--sans); font-size: 16px; color: var(--ink-soft); margin: 0 0 26px; max-width: 620px; line-height: 1.6; }
+
+  /* exhibit / section blocks */
+  .exhibit {
+    background: #201812; border: 1px solid var(--rule); padding: 20px 24px;
+    margin-bottom: 18px; position: relative;
+  }
+  .exhibit-label {
+    font-family: var(--mono); font-size: 13.4px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--maroon-bright); margin-bottom: 10px; display: block;
+  }
+  .exhibit h3 {
+    font-family: var(--sans); font-size: 15.4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--ink); margin: 0 0 14px; border-bottom: 1px solid var(--paper-line); padding-bottom: 8px;
+  }
+
+  label.field-label {
+    display: block; font-family: var(--sans); font-size: 14.7px; font-weight: 700; color: var(--ink-faint);
+    margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  label.field-label.first { margin-top: 0; }
+  input[type=text], input[type=password], input[type=file], textarea, select {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--rule); border-radius: 2px;
+    font-size: 17.3px; font-family: var(--sans); background: #14100c; color: var(--ink);
+  }
+  input[type=text]::placeholder, input[type=password]::placeholder, textarea::placeholder { color: var(--ink-faint); }
+  input[type=text]:focus, input[type=password]:focus, textarea:focus, select:focus {
+    outline: none; border-color: var(--maroon); box-shadow: 0 0 0 3px var(--maroon-soft);
+  }
+  input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #14100c inset;
+    -webkit-text-fill-color: var(--ink);
+    caret-color: var(--ink);
+  }
+  textarea { min-height: 76px; resize: vertical; line-height: 1.5; font-family: var(--sans); }
+  .row { display: flex; gap: 16px; }
+  .row > div { flex: 1; }
+
+  button {
+    font-family: var(--sans);
+    background: var(--maroon);
+    color: #fbf3ec; border: 1px solid var(--maroon-border);
+    padding: 10px 20px; border-radius: 2px; font-size: 16.6px; font-weight: 700; cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+  button:hover { background: #a03b31; }
+  button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
+  button.secondary:hover { background: rgba(255,255,255,0.05); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+
+  .spinner {
+    display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(251,243,236,0.35);
+    border-top-color: #fbf3ec; border-radius: 50%; animation: spin 0.7s linear infinite;
+    margin-right: 7px; vertical-align: -1px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ledger-line clause text: ruled notebook effect */
+  .ruled-text {
+    font-size: 18.6px; line-height: 28px; color: var(--ink);
+    border-left: 3px solid var(--maroon); padding: 0 0 0 16px; margin-top: 10px;
+    background-image: repeating-linear-gradient(rgba(255,255,255,0.01), rgba(255,255,255,0.01) 27px, var(--paper-line) 28px);
+    white-space: pre-wrap;
+  }
+  .clause-meta {
+    font-family: var(--sans); font-size: 13.4px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ink-faint); margin-top: 6px;
+  }
+
+  /* torn-tab stamp badges */
+  .stamp {
+    display: inline-flex; align-items: center; font-family: var(--sans); font-size: 12.8px; font-weight: 700;
+    padding: 3px 11px; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 2px;
+  }
+  .stamp.high { background: var(--maroon-soft); color: var(--maroon-bright); border: 1px solid var(--maroon-border); }
+  .stamp.medium { background: var(--ochre-soft); color: var(--ochre); border: 1px solid var(--ochre-border); }
+  .stamp.low { background: var(--olive-soft); color: var(--olive); border: 1px solid var(--olive-border); }
+  .stamp.gap { background: var(--ochre-soft); color: var(--ochre); border: 1px solid var(--ochre-border); }
+  .stamp.neutral { background: rgba(255,255,255,0.05); color: var(--ink-soft); border: 1px solid var(--rule); }
+
+  /* side annotation panel, evokes a margin note */
+  .annotation-row { display: flex; gap: 22px; }
+  .annotation-main { flex: 1; }
+  .annotation-side {
+    width: 210px; border-left: 1px dashed var(--rule); padding-left: 20px; flex-shrink: 0;
+  }
+  .annotation-side .label { font-family: var(--sans); font-size: 13.4px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-faint); margin: 12px 0 4px; }
+  .annotation-side .value { font-family: var(--mono); font-size: 24.3px; color: var(--maroon-bright); }
+
+  /* docket / summary tiles */
+  .docket-strip {
+    display: flex; font-family: var(--sans); border: 1px solid var(--rule); border-radius: 2px;
+    margin-bottom: 22px; background: rgba(255,255,255,0.03); overflow: hidden;
+  }
+  .docket-item {
+    flex: 1; padding: 14px 18px; border-right: 1px solid var(--paper-line); text-align: left;
+  }
+  .docket-item:last-child { border-right: none; }
+  .docket-item .num { font-family: var(--mono); font-size: 26.9px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .docket-item .num.flag { color: var(--maroon-bright); }
+  .docket-item .num.gap { color: var(--ochre); }
+  .docket-item .cap { font-size: 12.8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); margin-top: 3px; }
+
+  hr.rule { border: none; border-top: 1px solid var(--paper-line); margin: 14px 0; }
+
+  .final-answer { white-space: pre-wrap; line-height: 1.75; font-size: 19.2px; font-family: var(--serif); color: var(--ink); }
+
+  pre.raw {
+    background: rgba(0,0,0,0.35); color: #e0d6bc; padding: 14px; border-radius: 2px; overflow-x: auto;
+    font-size: 14.7px; line-height: 1.55; max-height: 320px; font-family: var(--mono); border: 1px solid var(--rule);
+  }
+  details summary { cursor: pointer; font-family: var(--sans); font-size: 14.7px; color: var(--ink-soft); }
+
+  .notice {
+    font-family: var(--sans); padding: 11px 15px; border-radius: 2px; margin: 12px 0; font-size: 16px; font-weight: 600;
+  }
+  .notice.error { background: var(--maroon-soft); color: var(--maroon-bright); border: 1px solid var(--maroon-border); }
+  .notice.info { background: var(--olive-soft); color: var(--olive); border: 1px solid var(--olive-border); }
+
+  .empty-note {
+    font-family: var(--sans); text-align: center; padding: 34px 20px; color: var(--ink-faint); font-size: 16px;
+  }
+
+  /* audit timeline as a docket log */
+  .docket-log-item {
+    display: grid; grid-template-columns: 96px 1fr; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--paper-line);
+  }
+  .docket-log-item:last-child { border-bottom: none; }
+  .docket-log-time { font-family: var(--mono); font-size: 13.4px; color: var(--ink-faint); padding-top: 2px; }
+  .docket-log-action { font-family: var(--sans); font-size: 16.6px; font-weight: 700; color: var(--ink); }
+  .docket-log-details { font-family: var(--sans); font-size: 15.4px; color: var(--ink-soft); margin-top: 3px; }
+
+  ::selection { background: rgba(179,69,58,0.35); color: #fff; }
+
+  @media (max-width: 760px) {
+    .masthead { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .row, .annotation-row { flex-direction: column; }
+    .annotation-side { width: auto; border-left: none; border-top: 1px dashed var(--rule); padding-left: 0; padding-top: 14px; }
+    .docket-strip { flex-wrap: wrap; }
+    .docket-item { flex: 1 1 50%; border-bottom: 1px solid var(--paper-line); }
+    .view { padding: 22px 18px 50px; }
+  }
+  .login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: var(--bg-deep);
+  }
+  .login-card {
+    width: 100%; max-width: 380px; background: #201812; border: 1px solid var(--rule);
+    padding: 32px 30px;
+  }
+  .login-card h1 { font-size: 24px; font-weight: 400; margin: 0 0 6px; color: #f4efe4; }
+  .login-card .sub { font-family: var(--sans); font-size: 14px; color: var(--ink-soft); margin-bottom: 22px; }
+  .login-card label.field-label { margin: 12px 0 6px; }
+  .login-card label.field-label.first { margin-top: 0; }
+  .login-card .btn-row { margin-top: 20px; }
+  .login-error { display: none; }
+</style>
+</head>
+<body>
+
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <h1>Register of Legal Documents</h1>
+    <div class="sub">Sign in to continue.</div>
+    <label class="field-label first">Username</label>
+    <input type="text" id="loginUsername" autocomplete="username" />
+    <label class="field-label">Password</label>
+    <input type="password" id="loginPassword" autocomplete="current-password" />
+    <div class="notice error login-error" id="loginError"></div>
+    <div class="btn-row">
+      <button id="loginSubmit" style="width:100%;">Sign In</button>
+    </div>
+  </div>
+</div>
+
+<div class="folio" id="appFolio" style="display:none;">
+  <div class="masthead">
+    <div class="title-block">
+      <h1>Register of Legal Documents</h1>
+      <span class="matter-no">Legal GraphRAG</span>
+    </div>
+    <div class="status-pill" id="healthPill"><span class="dot"></span><span id="healthText">checking&hellip;</span></div>
+  </div>
+
+  <div class="tab-row">
+    <div class="tab active" data-view="upload">1. Upload Workspace</div>
+    <div class="tab" data-view="status">2. Processing Status</div>
+    <div class="tab" data-view="review">3. Review Workspace</div>
+    <div class="tab" data-view="portfolio">4. Portfolio &amp; Risk Console</div>
+    <div class="tab" data-view="approval">5. Approval &amp; Escalation</div>
+    <div class="tab" data-view="dashboard">6. Legal Operations Dashboard</div>
+  </div>
+
+  <div class="apikey-row">
+    <span id="sessionUserLabel">signed in</span>
+    <button class="secondary" id="logoutButton" style="margin-left:auto;">Log out</button>
+  </div>
+
+  <!-- 1. UPLOAD WORKSPACE -->
+  <div class="view active" id="view-upload">
+   <div class="view-inner">
+    <div class="doc-title">Upload Workspace</div>
+    <div class="doc-sub">Submit a contract for first-pass review. Provide the org profile and document context up front, since these drive which clauses are expected, which risk thresholds apply, and how the document is routed for review.</div>
+
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit A &middot; Submission</span>
+      <h3>Document to Review</h3>
+      <label class="field-label first">File (PDF or DOCX)</label>
+      <input type="file" id="ingestFile" accept="application/pdf,.docx" />
+      <div class="row">
+        <div>
+          <label class="field-label">Org profile</label>
+          <select id="ingestOrgProfile"><option value="">Loading org profiles&hellip;</option></select>
+        </div>
+        <div>
+          <label class="field-label">Confidentiality level</label>
+          <select id="ingestConfidentiality">
+            <option value="">(use org profile default)</option>
+            <option value="internal">Internal</option>
+            <option value="restricted">Restricted</option>
+            <option value="highly_confidential">Highly Confidential</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label class="field-label">Business unit</label>
+          <input type="text" id="ingestBusinessUnit" placeholder="e.g. Procurement" />
+        </div>
+        <div>
+          <label class="field-label">Counterparty</label>
+          <input type="text" id="ingestVendor" placeholder="Enter counterparty name" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label class="field-label">Geography</label>
+          <input type="text" id="ingestGeography" placeholder="e.g. India" />
+        </div>
+        <div>
+          <label class="field-label">Review priority</label>
+          <select id="ingestReviewPriority">
+            <option value="">(unset)</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </div>
+      </div>
+      <label class="field-label">Contract name (optional)</label>
+      <input type="text" id="ingestContractName" placeholder="Enter contract name" />
+      <label class="field-label">Collection name (optional, derived from filename if left blank)</label>
+      <input type="text" id="ingestCollection" placeholder="Leave blank to use the filename" />
+      <div class="btn-row">
+        <button id="ingestSubmit">Submit for Review</button>
+      </div>
+    </div>
+
+    <div id="ingestSubmitNotice"></div>
+   </div>
+  </div>
+
+  <!-- 2. PROCESSING STATUS -->
+  <div class="view" id="view-status">
+   <div class="view-inner">
+    <div class="doc-title">Processing Status</div>
+    <div class="doc-sub">Live pipeline progress for the document just submitted. Low-confidence page flags (pages that needed OCR, or where extraction confidence came back low) are surfaced here so you know before review starts whether a section deserves extra scrutiny.</div>
+    <div id="statusResult"><div class="empty-note">Submit a document on the Upload Workspace screen to see its processing status here.</div></div>
+   </div>
+  </div>
+
+  <!-- 4. PORTFOLIO & RISK CONSOLE -->
+  <div class="view" id="view-portfolio">
+   <div class="view-inner">
+    <div class="doc-title">Portfolio and Risk Console</div>
+    <div class="doc-sub">Finds clauses of the same type across different documents under the same org profile or counterparty with materially different terms (e.g. a termination notice period that differs by more than two weeks), so a conflict buried in two unrelated contracts doesn't go unnoticed.</div>
+
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit D &middot; Scope</span>
+      <h3>Compare By</h3>
+      <div class="row">
+        <div>
+          <label class="field-label first">Org profile</label>
+          <select id="portfolioOrgProfile"><option value="">Loading org profiles&hellip;</option></select>
+        </div>
+        <div>
+          <label class="field-label first">Counterparty (optional, narrows further)</label>
+          <input type="text" id="portfolioCounterparty" placeholder="Enter counterparty name" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button id="portfolioSubmit">Find Conflicts</button>
+      </div>
+    </div>
+
+    <div id="portfolioResult"></div>
+   </div>
+  </div>
+
+  <!-- 5. APPROVAL & ESCALATION -->
+  <div class="view" id="view-approval">
+   <div class="view-inner">
+    <div class="doc-title">Approval and Escalation</div>
+    <div class="doc-sub">Record accept/edit/reject/escalate/comment decisions, and look up the full docket log for any job. Reviewer identity and role are read from your session, not typed in freehand.</div>
+
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit C &middot; Lookup</span>
+      <h3>Job Reference</h3>
+      <label class="field-label first">job_id or query_job_id</label>
+      <input type="text" id="auditJobId" placeholder="paste a job_id from an intake or inquiry response" />
+      <div class="btn-row">
+        <button id="auditSubmit">Retrieve Docket</button>
+      </div>
+    </div>
+
+    <div id="auditResult"></div>
+   </div>
+  </div>
+
+  <!-- 3. REVIEW WORKSPACE -->
+  <div class="view" id="view-review">
+   <div class="view-inner">
+    <div class="doc-title">Review Workspace</div>
+    <div class="doc-sub">Executive summary first, then risk flags with deviation scores and confidence breakdowns, then clause-by-clause detail, then a negotiation playbook per flagged clause, then a question box for this document at the very bottom.</div>
+    <div id="reviewResult"><div class="empty-note">Submit a document on the Upload Workspace screen to review it here once the pipeline pauses for approval.</div></div>
+
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit B &middot; Ask About This Document</span>
+      <h3>Ask a Question</h3>
+      <label class="field-label first">What do you want to know?</label>
+      <textarea id="askQuestion" placeholder="Enter your question about the document"></textarea>
+      <label class="field-label">Collection name</label>
+      <input type="text" id="askCollection" placeholder="Name used when the document was submitted" />
+      <div class="btn-row">
+        <button id="askSubmit">Ask</button>
+      </div>
+    </div>
+
+    <div id="askResult"></div>
+   </div>
+  </div>
+
+  <!-- OPERATIONS DASHBOARD VIEW -->
+  <div class="view" id="view-dashboard">
+   <div class="view-inner">
+    <div class="doc-title">Legal Operations Dashboard</div>
+    <div class="doc-sub">Aggregate throughput, approval outcomes, and risk categories across every document and question processed by the register.</div>
+
+    <div class="btn-row" style="margin-top:0; margin-bottom:18px;">
+      <button class="secondary" id="dashboardRefresh">Refresh</button>
+    </div>
+
+    <div id="dashboardResult"></div>
+   </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "";
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(API_BASE + path, { ...options, credentials: "include" });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail || body);
+    throw new Error(`${res.status}: ${detail}`);
+  }
+  return body;
+}
+
+function showApp() {
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("appFolio").style.display = "";
+  loadOrgProfiles();
+}
+
+function showLogin() {
+  document.getElementById("loginScreen").style.display = "flex";
+  document.getElementById("appFolio").style.display = "none";
+}
+
+async function checkSession() {
+  try {
+    await apiFetch("/api/auth/me");
+    showApp();
+  } catch (e) {
+    showLogin();
+  }
+}
+checkSession();
+
+document.getElementById("loginSubmit").addEventListener("click", async () => {
+  const username = document.getElementById("loginUsername").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const errorEl = document.getElementById("loginError");
+  errorEl.style.display = "none";
+  const btn = document.getElementById("loginSubmit");
+  btn.disabled = true;
+  try {
+    await apiFetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    document.getElementById("loginPassword").value = "";
+    showApp();
+    checkHealth();
+  } catch (e) {
+    errorEl.textContent = "Invalid username or password.";
+    errorEl.style.display = "block";
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("loginPassword").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("loginSubmit").click();
+});
+
+document.getElementById("logoutButton").addEventListener("click", async () => {
+  await apiFetch("/api/auth/logout", { method: "POST" });
+  showLogin();
+});
+
+async function checkHealth() {
+  const pill = document.getElementById("healthPill");
+  const text = document.getElementById("healthText");
+  try {
+    const res = await fetch(API_BASE + "/health");
+    if (!res.ok) throw new Error("unreachable");
+    pill.classList.add("online");
+    text.textContent = "register open";
+  } catch (e) {
+    pill.classList.remove("online");
+    text.textContent = "unreachable";
+  }
+}
+checkHealth();
+setInterval(checkHealth, 15000);
+
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("view-" + tab.dataset.view).classList.add("active");
+  });
+});
+
+function escapeHtml(s) {
+  return (s ?? "").toString().replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function confidenceValue(value) {
+  if (value === null || value === undefined) return "n/a";
+  return value.toFixed(2);
+}
+
+function clauseBlock(c) {
+  if (!c) return "<div class='clause-meta'>(clause metadata unavailable)</div>";
+  return `
+    <div class="clause-meta">Page ${escapeHtml(c.page)} &middot; ${escapeHtml(c.section || "no section")} &middot; ${escapeHtml(c.clause_type || "")}</div>
+    <div class="ruled-text">${escapeHtml(c.text)}</div>
+  `;
+}
+
+// ============================= Ingestion / Intake =============================
+
+let ingestThreadId = null;
+
+function renderIngestPayload(payload) {
+  const ctx = payload.document_context || {};
+  const parties = (ctx.parties || []).map(p => `${escapeHtml(p.name)}${p.role ? ` (${escapeHtml(p.role)})` : ""}`).join(", ");
+
+  let html = `
+    <div class="docket-strip">
+      <div class="docket-item"><div class="num">${payload.num_clauses ?? 0}</div><div class="cap">Clauses Extracted</div></div>
+      <div class="docket-item"><div class="num ${payload.num_high_risk_flags ? 'flag' : ''}">${payload.num_high_risk_flags ?? 0}</div><div class="cap">High-Risk Flags</div></div>
+      <div class="docket-item"><div class="num ${payload.num_conflicts ? 'flag' : ''}">${payload.num_conflicts ?? 0}</div><div class="cap">Conflicts</div></div>
+      <div class="docket-item"><div class="num ${payload.num_missing_clauses ? 'gap' : ''}">${payload.num_missing_clauses ?? 0}</div><div class="cap">Missing Clauses</div></div>
+    </div>
+
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit A-1 &middot; Particulars</span>
+      <h3>Document Context</h3>
+      <div class="clause-meta">${escapeHtml(ctx.document_name || "")} &middot; Job ${escapeHtml(payload.job_id || "")}</div>
+      <div class="row" style="margin-top:12px;">
+        <div><div class="clause-meta" style="margin-bottom:2px;">Contract Type</div><div>${escapeHtml(ctx.contract_type || "unknown")}</div></div>
+        <div><div class="clause-meta" style="margin-bottom:2px;">Governing Law</div><div>${escapeHtml(ctx.governing_law_country || "unknown")}</div></div>
+      </div>
+      ${ctx.subject_matter ? `<hr class="rule"><div class="clause-meta" style="margin-bottom:2px;">Subject</div><div>${escapeHtml(ctx.subject_matter)}</div>` : ""}
+      ${parties ? `<hr class="rule"><div class="clause-meta" style="margin-bottom:2px;">Parties</div><div>${parties}</div>` : ""}
+    </div>
+  `;
+
+  if ((payload.missing_clauses || []).length) {
+    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-2 &middot; Gaps</span><h3>Missing Clauses</h3>`;
+    for (const m of payload.missing_clauses) {
+      html += `
+        <div style="margin-bottom:12px;">
+          <span class="stamp gap">${escapeHtml(m.clause_type)} (absent)</span>
+          <div class="clause-meta" style="margin-top:8px; text-transform:none; letter-spacing:0;">${escapeHtml(m.reason)}</div>
+        </div>
+      `;
+    }
+    html += `</div>`;
+  }
+
+  if ((payload.high_risk_flags || []).length) {
+    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-3 &middot; Risk</span><h3>High-Risk Flags</h3>`;
+    for (const f of payload.high_risk_flags) {
+      const dev = f.deviation;
+      const cb = f.confidence_breakdown;
+      const pb = f.playbook;
+      html += `
+        <div class="annotation-row" style="margin-bottom:20px;">
+          <div class="annotation-main">
+            ${clauseBlock(f)}
+            ${dev ? `
+              <div class="clause-meta" style="margin-top:10px;">Org-Profile Deviation</div>
+              <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
+                Deviation score: <b>${dev.deviation_score.toFixed(2)}</b> (delta ${dev.delta.toFixed(2)}, confidence ${dev.confidence.toFixed(2)})<br/>
+                Approved position: ${escapeHtml(dev.approved_position)}<br/>
+                This contract's position: ${escapeHtml(dev.contract_position)}
+              </div>
+            ` : ""}
+            ${cb ? `
+              <div class="clause-meta" style="margin-top:10px;">Evidence-Weighted Confidence</div>
+              <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
+                Composite: <b>${cb.composite !== null ? cb.composite.toFixed(2) : "n/a"}</b>
+                &middot; OCR quality: ${cb.components.ocr_quality !== null ? cb.components.ocr_quality.toFixed(2) : "n/a"}
+                &middot; Retrieval relevance: ${cb.components.retrieval_relevance !== null ? cb.components.retrieval_relevance.toFixed(2) : "n/a"}
+                &middot; Model self-reported: ${cb.components.llm_confidence !== null ? cb.components.llm_confidence.toFixed(2) : "n/a"}
+              </div>
+            ` : ""}
+            ${pb ? `
+              <div class="clause-meta" style="margin-top:10px;">Negotiation Playbook (source: ${escapeHtml(pb.fallback_source)})</div>
+              <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
+                ${(pb.fallback_positions || []).length ? `Fallback positions (ideal to acceptable):<ol>${pb.fallback_positions.map(p => `<li>${escapeHtml(p)}</li>`).join("")}</ol>` : ""}
+                ${pb.suggested_redline ? `Suggested redline: ${escapeHtml(pb.suggested_redline)}` : ""}
+              </div>
+            ` : ""}
+          </div>
+          <div class="annotation-side">
+            <span class="stamp high">High Risk</span>
+            ${f.assigned_role === "senior_counsel" ? `<span class="stamp medium">Senior Counsel</span>` : ""}
+            <div class="label">Finding</div>
+            <div style="font-family:var(--sans); font-size:16px; line-height:1.5;">${escapeHtml(f.reason)}</div>
+            ${f.recommended_action ? `<div class="label">Recommended Action</div><div style="font-family:var(--sans); font-size:16px;">${escapeHtml(f.recommended_action)}</div>` : ""}
+            <div class="label">Confidence</div>
+            <div class="value">${confidenceValue(f.confidence)}</div>
+          </div>
+        </div>
+        <hr class="rule">
+      `;
+    }
+    html += `</div>`;
+  }
+
+  if ((payload.conflicts || []).length) {
+    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-4 &middot; Contradictions</span><h3>Conflicting Clauses</h3>`;
+    for (const c of payload.conflicts) {
+      html += `
+        <div style="margin-bottom:16px;">
+          <div style="font-family:var(--sans); font-weight:700; font-size:16.6px; margin-bottom:8px;">${escapeHtml(c.reason)}</div>
+          <div class="row">
+            <div>${clauseBlock(c.clause_a)}</div>
+            <div>${clauseBlock(c.clause_b)}</div>
+          </div>
+        </div>
+        <hr class="rule">
+      `;
+    }
+    html += `</div>`;
+  }
+
+  html += `
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit A-5 &middot; Disposition</span>
+      <h3>Reviewer Decision</h3>
+      <div class="row">
+        <div>
+          <label class="field-label first">Action</label>
+          <select id="ingestAction">
+            <option value="approve">Approve</option>
+            <option value="reject">Reject</option>
+            <option value="escalate">Escalate to Senior Counsel</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label first">Reviewer name</label>
+          <input type="text" id="ingestReviewer" placeholder="your name" />
+        </div>
+      </div>
+      <label class="field-label">Comments (optional)</label>
+      <textarea id="ingestComments"></textarea>
+      <div class="btn-row">
+        <button id="ingestDecisionSubmit">Record Decision</button>
+      </div>
+    </div>
+  `;
+  return html;
+}
+
+function switchToView(viewName) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+  const tab = document.querySelector(`.tab[data-view="${viewName}"]`);
+  if (tab) tab.classList.add("active");
+  document.getElementById("view-" + viewName).classList.add("active");
+}
+
+async function handleIngestResponse(resp) {
+  ingestThreadId = resp.thread_id;
+  const statusOut = document.getElementById("statusResult");
+  const out = document.getElementById("reviewResult");
+  if (resp.state === "paused") {
+    statusOut.innerHTML = renderProcessingStatus(INGEST_STAGES.length - 1);
+    out.innerHTML = `<div class="notice info">Paused for review: ${escapeHtml(resp.checkpoint)}</div>` + renderIngestPayload(resp.payload);
+    document.getElementById("ingestDecisionSubmit").addEventListener("click", submitIngestDecision);
+    switchToView("review");
+  } else {
+    const status = resp.result && resp.result.status;
+    const stampClass = status === "approved" ? "low" : status === "escalated" ? "medium" : "high";
+    out.innerHTML = `
+      <div class="exhibit">
+        <span class="exhibit-label">Docket Entry &middot; Closed</span>
+        <h3>Job Complete</h3>
+        <span class="stamp ${stampClass}">${escapeHtml(status || "done")}</span>
+        <div class="btn-row">
+          <button class="secondary" id="ingestExportButton">Export Review Summary</button>
+        </div>
+        <details style="margin-top:14px;"><summary>View raw response</summary>
+          <pre class="raw">${escapeHtml(JSON.stringify(resp.result, null, 2))}</pre>
+        </details>
+      </div>
+    `;
+    document.getElementById("ingestExportButton").addEventListener("click", () => {
+      exportTextFile(buildIngestExportText(resp.result), `review-${resp.thread_id}.txt`);
+    });
+  }
+}
+
+function downloadTextFile(text, filename) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportTextFile(text, filename) {
+  downloadTextFile(text, filename);
+}
+
+function buildIngestExportText(result) {
+  const lines = [
+    "LEGAL DOCUMENT REVIEW SUMMARY",
+    "==============================",
+    "",
+    `Document: ${result.document_name || "unknown"}`,
+    `Status: ${result.status || "unknown"}`,
+    `Vendor: ${result.vendor_name || "n/a"}`,
+    "",
+    "This is a system-generated review summary. It reflects AI-assisted extraction",
+    "and is pending or subject to the recorded reviewer decision above; it does not",
+    "constitute final legal advice.",
+  ];
+  return lines.join("\n");
+}
+
+async function submitIngestDecision() {
+  const btn = document.getElementById("ingestDecisionSubmit");
+  btn.disabled = true;
+  const decision = {
+    action: document.getElementById("ingestAction").value,
+    reviewer: document.getElementById("ingestReviewer").value || "unknown",
+    comments: document.getElementById("ingestComments").value || null,
+  };
+  try {
+    const resp = await apiFetch(`/api/ingestion/jobs/${ingestThreadId}/resume`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision }),
+    });
+    await handleIngestResponse(resp);
+  } catch (e) {
+    document.getElementById("reviewResult").innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+const INGEST_STAGES = [
+  "Extracting text and tables",
+  "Running OCR on scanned pages",
+  "Extracting clauses",
+  "Checking for conflicts and missing clauses",
+  "Flagging risk",
+  "Awaiting your review",
+];
+
+function renderProcessingStatus(activeIndex) {
+  const rows = INGEST_STAGES.map((stage, i) => {
+    let marker;
+    if (i < activeIndex) marker = `<span class="stamp low">done</span>`;
+    else if (i === activeIndex) marker = `<span class="stamp medium"><span class="spinner"></span>running</span>`;
+    else marker = `<span class="stamp neutral">pending</span>`;
+    return `
+      <div class="docket-log-item" style="grid-template-columns: 100px 1fr;">
+        <div>${marker}</div>
+        <div class="docket-log-action">${escapeHtml(stage)}</div>
+      </div>
+    `;
+  }).join("");
+  return `
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit A-0 &middot; Processing Status</span>
+      <h3>Pipeline Progress</h3>
+      ${rows}
+    </div>
+  `;
+}
+
+document.getElementById("ingestSubmit").addEventListener("click", async () => {
+  const fileInput = document.getElementById("ingestFile");
+  if (!fileInput.files.length) { alert("Choose a PDF or DOCX file first."); return; }
+  const btn = document.getElementById("ingestSubmit");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>Processing&hellip;`;
+  const resultEl = document.getElementById("statusResult");
+  resultEl.innerHTML = renderProcessingStatus(0);
+  switchToView("status");
+
+  let stageIndex = 0;
+  const stageTimer = setInterval(() => {
+    if (stageIndex < INGEST_STAGES.length - 1) {
+      stageIndex += 1;
+      resultEl.innerHTML = renderProcessingStatus(stageIndex);
+    }
+  }, 1800);
+
+  const form = new FormData();
+  form.append("file", fileInput.files[0]);
+  if (document.getElementById("ingestOrgProfile").value) form.append("org_profile_id", document.getElementById("ingestOrgProfile").value);
+  if (document.getElementById("ingestBusinessUnit").value) form.append("business_unit", document.getElementById("ingestBusinessUnit").value);
+  if (document.getElementById("ingestVendor").value) form.append("vendor_name", document.getElementById("ingestVendor").value);
+  if (document.getElementById("ingestVendor").value) form.append("counterparty", document.getElementById("ingestVendor").value);
+  if (document.getElementById("ingestGeography").value) form.append("geography", document.getElementById("ingestGeography").value);
+  if (document.getElementById("ingestConfidentiality").value) form.append("confidentiality_level", document.getElementById("ingestConfidentiality").value);
+  if (document.getElementById("ingestReviewPriority").value) form.append("review_priority", document.getElementById("ingestReviewPriority").value);
+  if (document.getElementById("ingestContractName").value) form.append("contract_name", document.getElementById("ingestContractName").value);
+  if (document.getElementById("ingestCollection").value) form.append("collection_name", document.getElementById("ingestCollection").value);
+
+  try {
+    const resp = await apiFetch("/api/ingestion/jobs", { method: "POST", body: form });
+    clearInterval(stageTimer);
+    await handleIngestResponse(resp);
+  } catch (e) {
+    clearInterval(stageTimer);
+    resultEl.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Submit for Review";
+  }
+});
+
+// ============================= Org Profiles =============================
+
+async function loadOrgProfiles() {
+  const selects = [document.getElementById("ingestOrgProfile"), document.getElementById("portfolioOrgProfile")];
+  try {
+    const resp = await apiFetch("/api/org-profiles");
+    const options = (resp.org_profiles || [])
+      .map(p => `<option value="${escapeHtml(p.profile_id)}">${escapeHtml(p.name)}</option>`)
+      .join("");
+    selects.forEach(sel => {
+      if (!sel) return;
+      sel.innerHTML = `<option value="">(none)</option>` + options;
+    });
+  } catch (e) {
+    selects.forEach(sel => { if (sel) sel.innerHTML = `<option value="">(unavailable)</option>`; });
+  }
+}
+
+// ============================= Portfolio & Risk Console =============================
+
+document.getElementById("portfolioSubmit").addEventListener("click", async () => {
+  const orgProfileId = document.getElementById("portfolioOrgProfile").value;
+  const counterparty = document.getElementById("portfolioCounterparty").value.trim();
+  const out = document.getElementById("portfolioResult");
+  if (!orgProfileId && !counterparty) { alert("Choose an org profile and/or enter a counterparty to scope the comparison."); return; }
+  const btn = document.getElementById("portfolioSubmit");
+  btn.disabled = true;
+  out.innerHTML = `<div class="empty-note">Comparing documents&hellip;</div>`;
+  try {
+    const params = new URLSearchParams();
+    if (orgProfileId) params.set("org_profile_id", orgProfileId);
+    if (counterparty) params.set("counterparty", counterparty);
+    const resp = await apiFetch(`/api/portfolio/conflicts?${params.toString()}`);
+    if (resp.note) {
+      out.innerHTML = `<div class="notice info">${escapeHtml(resp.note)}</div>`;
+    } else if (!resp.conflicts.length) {
+      out.innerHTML = `<div class="empty-note">No conflicting clauses found across ${resp.documents_compared} document(s) in scope.</div>`;
+    } else {
+      let html = `<div class="doc-sub">${resp.conflicts.length} conflict(s) found across ${resp.documents_compared} document(s).</div>`;
+      for (const c of resp.conflicts) {
+        html += `
+          <div class="exhibit">
+            <span class="exhibit-label">Conflict &middot; ${escapeHtml(c.clause_type)}</span>
+            <h3>Delta: ${escapeHtml(c.delta_days)} day(s)</h3>
+            <div class="row">
+              <div>
+                <div class="clause-meta">${escapeHtml(c.document_a.contract_name)} &middot; ${escapeHtml(c.value_a_days)} day(s)</div>
+                <div class="ruled-text">${escapeHtml(c.document_a.text)}</div>
+              </div>
+              <div>
+                <div class="clause-meta">${escapeHtml(c.document_b.contract_name)} &middot; ${escapeHtml(c.value_b_days)} day(s)</div>
+                <div class="ruled-text">${escapeHtml(c.document_b.text)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      out.innerHTML = html;
+    }
+  } catch (e) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ============================= Ask Counsel / Query =============================
+
+let askThreadId = null;
+
+function renderEvidencePayload(payload) {
+  const v = payload.evidence_verdict || {};
+  return `
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit B-1 &middot; Verdict</span>
+      <h3>Evidence Verdict</h3>
+      <span class="stamp ${v.sufficient ? 'low' : 'medium'}">${v.sufficient ? "Sufficient" : "Insufficient"}</span>
+      <div class="clause-meta" style="margin-top:10px; text-transform:none; letter-spacing:0;">${escapeHtml(v.reasoning || "")}</div>
+      ${(v.gaps || []).length ? `<hr class="rule"><div class="clause-meta" style="margin-bottom:2px;">Gaps</div><div>${v.gaps.map(escapeHtml).join("; ")}</div>` : ""}
+      ${(v.contradictions || []).length ? `<hr class="rule"><div class="clause-meta" style="margin-bottom:2px;">Contradictions</div><div>${v.contradictions.map(escapeHtml).join("; ")}</div>` : ""}
+    </div>
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit B-2 &middot; Evidence</span>
+      <h3>Retrieved Evidence</h3>
+      <pre class="raw">${escapeHtml(JSON.stringify({ hybrid_hits: payload.hybrid_hits, graph_hits: payload.graph_hits }, null, 2))}</pre>
+    </div>
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit B-3 &middot; Disposition</span>
+      <h3>Reviewer Decision</h3>
+      <div class="row">
+        <div>
+          <label class="field-label first">Proceed to answer generation?</label>
+          <select id="evidenceProceed">
+            <option value="true">Proceed</option>
+            <option value="false">Reject</option>
+            <option value="escalate">Escalate to Senior Review</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label first">Reviewer name</label>
+          <input type="text" id="evidenceReviewer" />
+        </div>
+      </div>
+      <label class="field-label">Comments (optional)</label>
+      <textarea id="evidenceComments"></textarea>
+      <div class="btn-row">
+        <button id="evidenceDecisionSubmit">Record Decision</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderAnswerPayload(payload) {
+  const risk = payload.draft_risk_level;
+  const riskStamp = risk ? `<span class="stamp ${escapeHtml(risk)}">${escapeHtml(risk)} risk</span>` : "";
+  return `
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit B-4 &middot; Draft</span>
+      <h3>Draft Answer</h3>
+      <div style="margin-bottom:10px;">${riskStamp} ${payload.draft_has_uncertainty ? '<span class="stamp medium">uncertainty flagged</span>' : ""}</div>
+      <div class="clause-meta">Revision round ${payload.revision_round ?? 0} of ${payload.max_answer_revisions ?? "?"}</div>
+      <div class="final-answer" style="margin-top:10px;">${escapeHtml(payload.draft_answer)}</div>
+      ${(payload.draft_citations || []).length ? `<hr class="rule"><div class="clause-meta" style="margin-bottom:2px;">Citations</div><div>${payload.draft_citations.map(escapeHtml).join("; ")}</div>` : ""}
+    </div>
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit B-5 &middot; Disposition</span>
+      <h3>Reviewer Decision</h3>
+      <label class="field-label first">Action</label>
+      <select id="answerAction">
+        <option value="approve">Approve</option>
+        <option value="revise">Revise (provide comments below)</option>
+        <option value="reject">Reject</option>
+        <option value="escalate">Escalate to Senior Counsel</option>
+      </select>
+      <div class="row">
+        <div>
+          <label class="field-label">Reviewer name</label>
+          <input type="text" id="answerReviewer" />
+        </div>
+        <div>
+          <label class="field-label">Edited answer (optional, only used on Approve)</label>
+          <input type="text" id="answerEdited" />
+        </div>
+      </div>
+      <label class="field-label">Comments (required for Revise)</label>
+      <textarea id="answerComments"></textarea>
+      <div class="btn-row">
+        <button id="answerDecisionSubmit">Record Decision</button>
+      </div>
+    </div>
+  `;
+}
+
+async function handleAskResponse(resp) {
+  askThreadId = resp.thread_id;
+  const out = document.getElementById("askResult");
+  if (resp.state === "paused") {
+    if (resp.checkpoint === "answer_approval_request") {
+      out.innerHTML = `<div class="notice info">Paused for review: answer review (round ${resp.payload.revision_round ?? 0})</div>` + renderAnswerPayload(resp.payload);
+      document.getElementById("answerDecisionSubmit").addEventListener("click", submitAnswerDecision);
+    } else {
+      out.innerHTML = `<div class="notice info">Paused for review: evidence review</div>` + renderEvidencePayload(resp.payload);
+      document.getElementById("evidenceDecisionSubmit").addEventListener("click", submitEvidenceDecision);
+    }
+  } else {
+    const answer = resp.result && resp.result.final_answer;
+    const status = resp.result && resp.result.status;
+    out.innerHTML = answer
+      ? `<div class="exhibit"><span class="exhibit-label">Docket Entry &middot; Answered</span><h3>Final Answer</h3><div class="final-answer">${escapeHtml(answer)}</div></div>`
+      : `<div class="notice info">Completed. No answer returned (status: ${escapeHtml(status)}).</div>`;
+  }
+}
+
+async function submitEvidenceDecision() {
+  const btn = document.getElementById("evidenceDecisionSubmit");
+  btn.disabled = true;
+  const proceedValue = document.getElementById("evidenceProceed").value;
+  const decision = {
+    proceed: proceedValue === "true",
+    escalate: proceedValue === "escalate",
+    reviewer: document.getElementById("evidenceReviewer").value || "unknown",
+    comments: document.getElementById("evidenceComments").value || null,
+  };
+  try {
+    const resp = await apiFetch(`/api/query/jobs/${askThreadId}/resume`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }),
+    });
+    await handleAskResponse(resp);
+  } catch (e) {
+    document.getElementById("askResult").innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitAnswerDecision() {
+  const btn = document.getElementById("answerDecisionSubmit");
+  btn.disabled = true;
+  const action = document.getElementById("answerAction").value;
+  const decision = {
+    action,
+    reviewer: document.getElementById("answerReviewer").value || "unknown",
+    comments: document.getElementById("answerComments").value || null,
+    edited_answer: document.getElementById("answerEdited").value || null,
+  };
+  if (action === "revise" && !decision.comments) {
+    alert("Comments are required when choosing Revise. The LLM reasons over them to produce the next draft.");
+    btn.disabled = false;
+    return;
+  }
+  try {
+    const resp = await apiFetch(`/api/query/jobs/${askThreadId}/resume`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }),
+    });
+    await handleAskResponse(resp);
+  } catch (e) {
+    document.getElementById("askResult").innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("askSubmit").addEventListener("click", async () => {
+  const question = document.getElementById("askQuestion").value.trim();
+  const collection = document.getElementById("askCollection").value.trim();
+  if (!question || !collection) { alert("Question and collection name are both required."); return; }
+  const btn = document.getElementById("askSubmit");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>Consulting the record&hellip;`;
+  document.getElementById("askResult").innerHTML = "";
+  try {
+    const resp = await apiFetch("/api/query/jobs", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, collection_name: collection }),
+    });
+    await handleAskResponse(resp);
+  } catch (e) {
+    document.getElementById("askResult").innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Ask";
+  }
+});
+
+// ============================= Docket Log / Audit =============================
+
+document.getElementById("auditSubmit").addEventListener("click", async () => {
+  const jobId = document.getElementById("auditJobId").value.trim();
+  const out = document.getElementById("auditResult");
+  if (!jobId) { alert("Enter a job ID first."); return; }
+  const btn = document.getElementById("auditSubmit");
+  btn.disabled = true;
+  out.innerHTML = "";
+  try {
+    const resp = await apiFetch(`/api/audit/${encodeURIComponent(jobId)}`);
+    let html = `<div class="exhibit"><span class="exhibit-label">Exhibit C-1 &middot; Timeline</span><h3>Processing Log</h3>`;
+    if (!resp.audit_trail.length) {
+      html += `<div class="empty-note">No docket entries found for this job.</div>`;
+    } else {
+      for (const a of resp.audit_trail) {
+        html += `
+          <div class="docket-log-item">
+            <div class="docket-log-time">${escapeHtml(a.timestamp)}</div>
+            <div>
+              <div class="docket-log-action">${escapeHtml(a.action)} <span class="stamp neutral">${escapeHtml(a.actor)}</span></div>
+              <div class="docket-log-details">${escapeHtml(a.details)}</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+    html += `</div>`;
+
+    if (resp.reviewer_decisions.length) {
+      html += `<div class="exhibit"><span class="exhibit-label">Exhibit C-2 &middot; Decisions</span><h3>Reviewer Decisions</h3>`;
+      for (const d of resp.reviewer_decisions) {
+        html += `
+          <div style="margin-bottom:14px;">
+            <span class="stamp ${d.approved ? 'low' : 'high'}">${d.approved ? "approved" : "not approved"}</span>
+            <span class="clause-meta" style="margin-left:10px; text-transform:none; letter-spacing:0;">${escapeHtml(d.reviewer)} &middot; ${escapeHtml(d.decided_at)}</span>
+            ${d.comments ? `<div class="clause-meta" style="margin-top:8px; text-transform:none; letter-spacing:0;">${escapeHtml(d.comments)}</div>` : ""}
+          </div>
+          <hr class="rule">
+        `;
+      }
+      html += `</div>`;
+    }
+    out.innerHTML = html;
+  } catch (e) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ============================= Operations Dashboard =============================
+
+function statusBreakdownRows(byStatus) {
+  const entries = Object.entries(byStatus || {});
+  if (!entries.length) return `<div class="empty-note">No jobs recorded yet.</div>`;
+  return entries.map(([status, count]) => `
+    <div class="docket-log-item" style="grid-template-columns: 1fr auto;">
+      <div class="docket-log-action" style="text-transform:capitalize;">${escapeHtml(status)}</div>
+      <div class="docket-log-action">${escapeHtml(count)}</div>
+    </div>
+  `).join("");
+}
+
+async function loadDashboard() {
+  const out = document.getElementById("dashboardResult");
+  const btn = document.getElementById("dashboardRefresh");
+  btn.disabled = true;
+  out.innerHTML = `<div class="empty-note">Loading&hellip;</div>`;
+  try {
+    const stats = await apiFetch("/api/dashboard/stats");
+    const risk = stats.risk_flags_by_level || {};
+
+    let html = `
+      <div class="docket-strip">
+        <div class="docket-item"><div class="num">${stats.total_contracts ?? 0}</div><div class="cap">Contracts Registered</div></div>
+        <div class="docket-item"><div class="num flag">${risk.high ?? 0}</div><div class="cap">High-Risk Flags</div></div>
+        <div class="docket-item"><div class="num">${risk.medium ?? 0}</div><div class="cap">Medium-Risk Flags</div></div>
+        <div class="docket-item"><div class="num">${risk.low ?? 0}</div><div class="cap">Low-Risk Flags</div></div>
+      </div>
+      <div class="docket-strip">
+        <div class="docket-item"><div class="num gap">${stats.missing_clause_flags ?? 0}</div><div class="cap">Missing-Clause Flags</div></div>
+        <div class="docket-item"><div class="num gap">${stats.conflicting_clause_pairs ?? 0}</div><div class="cap">Conflicting Clause Pairs</div></div>
+      </div>
+
+      <div class="exhibit">
+        <span class="exhibit-label">Docket Summary &middot; Ingestion</span>
+        <h3>Document Jobs by Status</h3>
+        ${statusBreakdownRows(stats.document_jobs_by_status)}
+      </div>
+
+      <div class="exhibit">
+        <span class="exhibit-label">Docket Summary &middot; Inquiries</span>
+        <h3>Question Jobs by Status</h3>
+        ${statusBreakdownRows(stats.query_jobs_by_status)}
+      </div>
+    `;
+    out.innerHTML = html;
+  } catch (e) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("dashboardRefresh").addEventListener("click", loadDashboard);
+
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    if (tab.dataset.view === "dashboard") loadDashboard();
+  });
+});
+</script>
+</body>
+</html>
