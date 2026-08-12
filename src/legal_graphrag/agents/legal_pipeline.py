@@ -21,11 +21,14 @@ from ..retrieval.hybrid_search import hybrid_search, get_full_document_text
 from ..retrieval.contract_metadata import generate_document_summary
 from .prompts import (
     classify_route,
+    detect_clause_type_topic,
     verify_evidence,
     synthesize_legal_answer,
     revise_legal_answer,
     DEFAULT_ALPHA,
 )
+
+MAX_CONVERSATION_TURNS = 6  # how many prior turns to feed back in as memory; older turns still live in ChatMessage history
 
 
 # shared graph state
@@ -34,6 +37,12 @@ class LegalAgentState(TypedDict, total=False):
     question: str
     collection_name: str
     metadata_filter: Optional[dict]
+    document_id: Optional[str]      # section 17.5: per-document memory scope + authorization key
+    asked_by: Optional[str]         # reviewer username, for the persisted ChatMessage row
+    org_profile_id: Optional[str]   # for standards-context lookup (17.5's "standards context when relevant")
+
+    # --- conversational memory (section 17.5) ---
+    conversation_history: list[dict]  # prior turns for this document_id, oldest first, loaded once in start_job
 
     # --- router ---
     query_job_id: str
@@ -46,6 +55,7 @@ class LegalAgentState(TypedDict, total=False):
     graph_hits: list[dict]
     cypher_used: Optional[str]
     cypher_source: Optional[str]    # "template" or "generated"
+    standards_context: Optional[dict]  # resolve_standards() result, when the question names a known clause_type
 
     # --- verification ---
     evidence_verdict: dict
@@ -74,9 +84,28 @@ def start_job_node(state: LegalAgentState) -> dict:
     job_id = str(uuid.uuid4())
     store.create_query_job(job_id, state["question"])
     store.write_audit_record(job_id, "system", "query_received", state["question"])
-    print(f"[start_job] job_id={job_id}")
+
+    # section 17.5: load this document's remembered turns once, here, rather than
+    # per-node -- every downstream node that wants conversation context reads the
+    # same snapshot instead of re-querying Postgres. Switching documents can't leak
+    # context because this is scoped strictly by document_id (get_chat_history's
+    # default excludes anything at/before a clear-chat marker too).
+    conversation_history: list[dict] = []
+    if state.get("document_id"):
+        try:
+            from ..db.repository import get_chat_history
+            history = get_chat_history(state["document_id"])
+            conversation_history = [
+                {"question": h["question"], "answer": h["answer"]}
+                for h in history if h["status"] == "answered" and h["answer"]
+            ][-MAX_CONVERSATION_TURNS:]
+        except Exception as e:  # noqa: BLE001
+            print(f"[start_job] WARNING: loading chat history failed: {type(e).__name__}: {e}")
+
+    print(f"[start_job] job_id={job_id} conversation_turns_loaded={len(conversation_history)}")
     return {
         "query_job_id": job_id,
+        "conversation_history": conversation_history,
         # defaults so a skipped path doesn't cause a KeyError downstream
         "hybrid_hits": state.get("hybrid_hits", []),
         "graph_hits": state.get("graph_hits", []),
@@ -103,7 +132,7 @@ def route_after_router(state: LegalAgentState) -> str:
     return {
         "hybrid": "hybrid_search_agent",
         "graph": "graph_rag_agent",
-        "direct": "auditor",
+        "direct": "standards_lookup",
         "whole_document": "whole_document_agent",
     }[state["route"]]
 
@@ -160,9 +189,46 @@ def graph_rag_agent_node(state: LegalAgentState) -> dict:
     return {"cypher_used": cypher, "cypher_source": source, "graph_hits": hits}
 
 
+# section 17.5's "standards context when relevant": deterministic clause_type
+# detection, then the same resolve_standards() Phase 5/8 already use -- no LLM
+# call, no fabricated standard if nothing resolves.
+def standards_lookup_node(state: LegalAgentState) -> dict:
+    clause_type = detect_clause_type_topic(state["question"])
+    if not clause_type:
+        return {"standards_context": None}
+
+    try:
+        from ..graphrag.standards import resolve_standards
+        from ..db.repository import get_document, get_org_profile_customer_id
+
+        document_id = state.get("document_id")
+        org_profile_id = state.get("org_profile_id")
+        document_type = None
+        if document_id:
+            doc = get_document(document_id)
+            if doc:
+                document_type = doc.get("document_type")
+                org_profile_id = org_profile_id or doc.get("org_profile_id")
+        customer_id = get_org_profile_customer_id(org_profile_id) if org_profile_id else None
+
+        resolved = resolve_standards(clause_type, document_type, org_profile_id=org_profile_id,
+                                      business_unit_id=None, jurisdiction_id=None, customer_id=customer_id)
+    except Exception as e:  # noqa: BLE001
+        print(f"[standards_lookup] WARNING: resolve_standards failed: {type(e).__name__}: {e}")
+        resolved = None
+
+    if resolved and resolved.get("selected"):
+        print(f"[standards_lookup] clause_type={clause_type} scope_level={resolved.get('scope_level')}")
+        return {"standards_context": {"clause_type": clause_type, **resolved}}
+    return {"standards_context": None}
+
+
 # checks evidence quality before we let the LLM generate anything
 def auditor_node(state: LegalAgentState) -> dict:
-    verdict = verify_evidence(state["question"], state["hybrid_hits"], state["graph_hits"])
+    verdict = verify_evidence(
+        state["question"], state["hybrid_hits"], state["graph_hits"],
+        conversation_history=state.get("conversation_history"), standards_context=state.get("standards_context"),
+    )
     store = get_store()
     store.write_audit_record(
         state["query_job_id"], "auditor", "evidence_verified",
@@ -200,6 +266,46 @@ def route_after_evidence_checkpoint(state: LegalAgentState) -> str:
     return "evidence_rejected"
 
 
+def _persist_chat_message(state: LegalAgentState, status: str, answer: Optional[str] = None,
+                           citations: Optional[list] = None) -> None:
+    """Section 17.5: appends this turn to the document's chat transcript, once
+    the graph reaches ANY terminal state (answered or otherwise) -- a turn that
+    ends in rejection/escalation still belongs in the transcript for audit, but
+    start_job_node's memory loader only feeds back turns with status="answered"
+    so a rejected/escalated draft never gets treated as established context for
+    the next question. No-op if this turn has no document_id (nothing to scope
+    memory to, e.g. a caller that never selected a document)."""
+    document_id = state.get("document_id")
+    if not document_id:
+        return
+    hybrid_hits = state.get("hybrid_hits") or []
+    graph_hits = state.get("graph_hits") or []
+    try:
+        from ..db.repository import record_chat_message
+        record_chat_message(
+            document_id=document_id, question=state["question"], answer=answer, status=status,
+            citations=citations or [], asked_by=state.get("asked_by"), query_job_id=state.get("query_job_id"),
+            retrieved_contexts=hybrid_hits + graph_hits, route=state.get("route"),
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"[chat_message] WARNING: persisting chat message failed: {type(e).__name__}: {e}")
+
+    try:
+        from ..db.repository import get_document
+        from .ragas_logging import log_ragas_case
+
+        doc = get_document(document_id)
+        standards_context = state.get("standards_context")
+        log_ragas_case(
+            question=state["question"], answer=answer, hybrid_hits=hybrid_hits, graph_hits=graph_hits,
+            document_id=document_id,
+            organization=(doc or {}).get("org_profile_id"), jurisdiction=(doc or {}).get("geography"),
+            expected_standard_source=(standards_context or {}).get("source"),
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"[chat_message] WARNING: RAGAS logging failed: {type(e).__name__}: {e}")
+
+
 def evidence_rejected_node(state: LegalAgentState) -> dict:
     """Evidence got rejected, so we stop before generating anything."""
     store = get_store()
@@ -213,6 +319,7 @@ def evidence_rejected_node(state: LegalAgentState) -> dict:
         state["query_job_id"], decision.get("reviewer", "unknown"), "evidence_rejected",
         decision.get("comments") or "no comments",
     )
+    _persist_chat_message(state, "evidence_rejected")
     print(f"[evidence_rejected] job {state['query_job_id']}")
     return {"final_answer": None, "status": "evidence_rejected"}
 
@@ -228,6 +335,7 @@ def evidence_escalated_node(state: LegalAgentState) -> dict:
     store.update_job_status(state["query_job_id"], "evidence_escalated")
     store.write_audit_record(state["query_job_id"], reviewer, "evidence_escalated", reason)
 
+    _persist_chat_message(state, "evidence_escalated")
     print(f"[evidence_escalated] job {state['query_job_id']}: {reason}")
     return {"final_answer": None, "status": "evidence_escalated"}
 
@@ -240,7 +348,8 @@ def synthesizer_node(state: LegalAgentState) -> dict:
         result = {"answer": summary_text, "citations": [], "risk_level": None, "has_uncertainty": False}
     else:
         result = synthesize_legal_answer(
-            state["question"], state["hybrid_hits"], state["graph_hits"], state["evidence_verdict"]
+            state["question"], state["hybrid_hits"], state["graph_hits"], state["evidence_verdict"],
+            conversation_history=state.get("conversation_history"), standards_context=state.get("standards_context"),
         )
     store = get_store()
     store.write_audit_record(
@@ -312,6 +421,8 @@ def answer_escalated_node(state: LegalAgentState) -> dict:
     store.update_job_status(state["query_job_id"], "escalated")
     store.write_audit_record(state["query_job_id"], reviewer, "answer_escalated", reason)
 
+    _persist_chat_message(state, "escalated", answer=state.get("draft_answer"),
+                           citations=state.get("draft_citations"))
     print(f"[answer_escalated] job {state['query_job_id']}: {reason}")
     return {"final_answer": None, "status": "escalated"}
 
@@ -330,6 +441,10 @@ def revise_answer_node(state: LegalAgentState) -> dict:
         evidence_verdict=state["evidence_verdict"],
         reviewer_feedback=feedback,
     )
+    # note: revise_legal_answer doesn't take conversation_history/standards_context --
+    # a revision is refining THIS turn's already-drafted answer against reviewer
+    # feedback, not re-grounding against prior turns; standards_context (if any)
+    # is already implicitly part of what shaped the draft being revised.
 
     store = get_store()
     store.write_audit_record(
@@ -360,6 +475,7 @@ def answer_rejected_node(state: LegalAgentState) -> dict:
     store.update_job_status(state["query_job_id"], "rejected")
     store.write_audit_record(state["query_job_id"], reviewer, "answer_rejected", reason)
 
+    _persist_chat_message(state, "rejected", answer=state.get("draft_answer"), citations=state.get("draft_citations"))
     print(f"[answer_rejected] job {state['query_job_id']}: {reason}")
     return {"final_answer": None, "status": "rejected"}
 
@@ -377,6 +493,7 @@ def finalize_node(state: LegalAgentState) -> dict:
     store.store_query_answer(state["query_job_id"], final_answer)
     store.update_job_status(state["query_job_id"], "answered")
 
+    _persist_chat_message(state, "answered", answer=final_answer, citations=state.get("draft_citations"))
     print(f"[finalize] job {state['query_job_id']} -> answered "
           f"(after {state.get('answer_revision_count', 0)} revision round(s))")
     return {"final_answer": final_answer, "status": "answered"}
@@ -415,6 +532,7 @@ def build_legal_agent_graph():
     graph.add_node("hybrid_search_agent", hybrid_search_agent_node)
     graph.add_node("graph_rag_agent", graph_rag_agent_node)
     graph.add_node("whole_document_agent", whole_document_agent_node)
+    graph.add_node("standards_lookup", standards_lookup_node)
     graph.add_node("auditor", auditor_node)
     graph.add_node("human_evidence_checkpoint", human_evidence_checkpoint_node)
     graph.add_node("evidence_rejected", evidence_rejected_node)
@@ -435,11 +553,12 @@ def build_legal_agent_graph():
         "hybrid_search_agent": "hybrid_search_agent",
         "graph_rag_agent": "graph_rag_agent",
         "whole_document_agent": "whole_document_agent",
-        "auditor": "auditor",  # "direct" path: skip retrieval entirely
+        "standards_lookup": "standards_lookup",  # "direct" path: skip retrieval entirely, still check for standards context
     })
-    graph.add_edge("hybrid_search_agent", "auditor")
-    graph.add_edge("graph_rag_agent", "auditor")
-    graph.add_edge("whole_document_agent", "auditor")
+    graph.add_edge("hybrid_search_agent", "standards_lookup")
+    graph.add_edge("graph_rag_agent", "standards_lookup")
+    graph.add_edge("whole_document_agent", "standards_lookup")
+    graph.add_edge("standards_lookup", "auditor")
 
     # evidence checkpoint - has to pass before we generate anything
     graph.add_edge("auditor", "human_evidence_checkpoint")

@@ -33,3 +33,6 @@ class QueryStartRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
     collection_name: str
     metadata_filter: Optional[dict[str, Any]] = None
+    document_id: Optional[str] = Field(
+        None, description="Scopes conversational memory + confidentiality authorization to this document (section 17.5)."
+    )

@@ -399,7 +399,21 @@ async def get_ingestion_job_status(thread_id: str) -> dict:
 
 # query pipeline routes (router -> retrieval -> auditor -> synthesizer)
 @app.post("/api/query/jobs", response_model=JobResponse, dependencies=[Depends(require_session), Depends(rate_limit)])
-async def start_query_job(body: QueryStartRequest) -> JobResponse:
+async def start_query_job(body: QueryStartRequest, reviewer: dict = Depends(get_current_reviewer)) -> JobResponse:
+    """Section 17.5: when document_id is given, this both authorizes the caller
+    (same confidentiality gate as GET /api/documents/{id}, so chat history access
+    is controlled by document permissions) and scopes conversational memory to
+    that document -- start_job_node loads only that document's own remembered
+    turns, so switching documents can never leak another document's context in."""
+    org_profile_id = None
+    if body.document_id:
+        from ..db.repository import get_document
+        doc = get_document(body.document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail=f"No document found for document_id={body.document_id}")
+        _enforce_confidentiality_access(doc.get("confidentiality_level"), reviewer["role"])
+        org_profile_id = doc.get("org_profile_id")
+
     thread_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
     result = _run_graph_safely(
@@ -408,6 +422,9 @@ async def start_query_job(body: QueryStartRequest) -> JobResponse:
             "question": body.question,
             "collection_name": body.collection_name,
             "metadata_filter": body.metadata_filter,
+            "document_id": body.document_id,
+            "asked_by": reviewer["username"],
+            "org_profile_id": org_profile_id,
         },
         config=config,
     )
@@ -440,6 +457,37 @@ async def get_query_job_status(thread_id: str) -> dict:
         "answer_revision_count": snapshot.values.get("answer_revision_count"),
         "next_node": snapshot.next,
     })
+
+
+@app.get("/api/documents/{document_id}/chat", dependencies=[Depends(require_session)])
+async def get_chat_history_endpoint(document_id: str, reviewer: dict = Depends(get_current_reviewer)) -> dict:
+    """Section 17.5: 'chat history access controlled by document permissions' --
+    same confidentiality gate as the document detail/query-start endpoints."""
+    from ..db.repository import get_document, get_chat_history
+
+    doc = get_document(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"No document found for document_id={document_id}")
+    _enforce_confidentiality_access(doc.get("confidentiality_level"), reviewer["role"])
+
+    return _jsonable({"messages": get_chat_history(document_id, include_cleared=True)})
+
+
+@app.post("/api/documents/{document_id}/chat/clear", dependencies=[Depends(require_session)])
+async def clear_chat_history_endpoint(document_id: str, reviewer: dict = Depends(get_current_reviewer)) -> dict:
+    """Section 17.5's optional clear-chat action. Soft clear: sets a marker so
+    cleared turns stop being fed back in as conversational memory, but the rows
+    themselves are never deleted (see ChatMessage/clear_chat_history docstrings)."""
+    from ..db.repository import get_document, clear_chat_history, write_audit_log
+
+    doc = get_document(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"No document found for document_id={document_id}")
+    _enforce_confidentiality_access(doc.get("confidentiality_level"), reviewer["role"])
+
+    result = clear_chat_history(document_id)
+    write_audit_log(stage="chat", actor=reviewer["username"], action="chat_cleared", document_id=document_id)
+    return _jsonable(result)
 
 
 # audit trail: read-only, works for either a DocumentJob (job_id) or QueryJob (query_job_id)

@@ -146,12 +146,19 @@ class Document(Base):
     end_date: Mapped[str] = mapped_column(String(20), nullable=True)  # ISO 8601 date
     monetary_value: Mapped[float] = mapped_column(Float, nullable=True)
     governing_law_country: Mapped[str] = mapped_column(String(10), nullable=True)
+    # section 17.5's "optional clear-chat action": a soft marker, not a delete --
+    # ChatMessage rows are append-only like everything else here, so "clearing"
+    # means "stop feeding rows at/before this timestamp back in as memory," not
+    # destroying the transcript (chat history is still audit-relevant, section 17.5's
+    # "chat history access controlled by document permissions" implies it survives).
+    chat_cleared_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
     org_profile: Mapped["OrgProfile"] = relationship(back_populates="documents")
     clauses: Mapped[list["Clause"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     summary_versions: Mapped[list["SummaryVersion"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     confidentiality_overrides: Mapped[list["ConfidentialityOverride"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     decision_briefs: Mapped[list["DecisionBrief"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+    chat_messages: Mapped[list["ChatMessage"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 
 class Clause(Base):
@@ -370,3 +377,29 @@ class ApprovalStep(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     decision_brief: Mapped["DecisionBrief"] = relationship(back_populates="approval_steps")
+
+
+class ChatMessage(Base):
+    """Section 17.5: one turn of the per-document Ask CounselGraph chat. Append-only
+    like every other history table here -- a "clear chat" action sets
+    Document.chat_cleared_at instead of deleting rows, so the underlying transcript
+    stays available for audit while no longer being fed back in as conversational
+    memory. asked_by is nullable because the query graph's evidence/answer human
+    checkpoints don't currently require a caller identity the way document review
+    actions do; it's populated when the caller is known (the API layer has it via
+    the session) and left null only for any programmatic/test caller that doesn't."""
+    __tablename__ = "chat_message"
+
+    chat_message_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("document.document_id"), nullable=False)
+    query_job_id: Mapped[str] = mapped_column(String(36), nullable=True)  # Neo4j QueryJob this turn belongs to
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    answer: Mapped[str] = mapped_column(Text, nullable=True)  # null if the turn ended in rejection/escalation, never answered
+    citations: Mapped[list] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)  # answered/rejected/escalated/evidence_rejected/evidence_escalated
+    asked_by: Mapped[str] = mapped_column(String(100), nullable=True)
+    retrieved_contexts: Mapped[list] = mapped_column(JSON, nullable=True)  # section 24.2 RAGAS record: raw hybrid/graph hits used
+    route: Mapped[str] = mapped_column(String(50), nullable=True)  # hybrid/graph/whole_document/direct, for eval breakdowns
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    document: Mapped["Document"] = relationship(back_populates="chat_messages")

@@ -23,6 +23,7 @@ data/chroma_db/*
 data/metadata/*
 !data/metadata/.gitkeep
 data/legal_graphrag.db
+data/eval_cache/
 
 # OS / Editor
 .DS_Store

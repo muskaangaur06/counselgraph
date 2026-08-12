@@ -673,6 +673,7 @@
       <div class="chat-panel-title">Ask CounselGraph</div>
       <div class="chat-panel-subtitle" id="chatDocLabel">No document selected</div>
     </div>
+    <button class="chat-panel-close" id="chatClearBtn" type="button" title="Clear chat history for this document" style="margin-right:6px;">Clear</button>
     <button class="chat-panel-close" id="chatPanelClose" type="button" aria-label="Close">&times;</button>
   </div>
   <div class="chat-panel-body" id="askResult">
@@ -977,11 +978,21 @@ function applyReadOnlyDocumentFields() {
 }
 
 function setCurrentDocument(fields) {
+  const previousDocumentId = currentDocument.documentId;
   currentDocument = { ...currentDocument, ...fields };
   persistCurrentDocument();
   renderDocHeader();
   applyReadOnlyDocumentFields();
   renderChatDocLabel();
+
+  // section 17.5: switching to a DIFFERENT document must not leak the previous
+  // document's chat context -- drop the in-flight thread and reload the
+  // transcript scoped to the new document_id (empty if it has no history yet).
+  if (currentDocument.documentId !== previousDocumentId) {
+    askThreadId = null;
+    askCurrentQuestion = null;
+    loadChatTranscript(currentDocument.documentId).then(() => renderChatPanelBody());
+  }
 }
 
 function clearCurrentDocument() {
@@ -996,6 +1007,7 @@ function clearCurrentDocument() {
   // or audit result that looks like it belongs to the newly-selected one
   askThreadId = null;
   askCurrentQuestion = null;
+  chatTranscriptLoaded = [];
   const askResult = document.getElementById("askResult");
   if (askResult) askResult.innerHTML = `<div class="chat-empty">Load or upload a document, then ask a question about it here.</div>`;
   const auditResult = document.getElementById("auditResult");
@@ -2255,24 +2267,65 @@ function renderChatQuestionBubble() {
   return `<div class="chat-question"><span class="label">You asked</span>${escapeHtml(askCurrentQuestion)}</div>`;
 }
 
+// section 17.5: renders every remembered turn for the selected document, oldest
+// first, above the in-progress exchange -- this IS the visible conversation
+// history, not just a hint that memory exists somewhere server-side.
+function renderChatTranscript(messages) {
+  if (!messages || !messages.length) return "";
+  return messages.map(m => {
+    const statusLabel = m.status === "answered" ? "" :
+      `<span class="stamp medium" style="margin-left:6px;">${escapeHtml(m.status.replace(/_/g, " "))}</span>`;
+    const citations = (m.citations || []).length
+      ? `<div class="clause-meta" style="margin-top:4px;">Citations: ${m.citations.map(escapeHtml).join("; ")}</div>` : "";
+    return `
+      <div class="chat-question"><span class="label">You asked</span>${escapeHtml(m.question)}</div>
+      <div class="final-answer" style="margin:6px 0 14px;">
+        ${m.answer ? escapeHtml(m.answer) : '<span class="clause-meta">No answer (see status).</span>'}${statusLabel}
+        ${citations}
+      </div>
+    `;
+  }).join("");
+}
+
+let chatTranscriptLoaded = [];
+
+async function loadChatTranscript(documentId) {
+  if (!documentId) { chatTranscriptLoaded = []; return; }
+  try {
+    const resp = await apiFetch(`/api/documents/${encodeURIComponent(documentId)}/chat`);
+    chatTranscriptLoaded = resp.messages || [];
+  } catch (e) {
+    chatTranscriptLoaded = [];
+  }
+}
+
+function renderChatPanelBody(inProgressHtml) {
+  const out = document.getElementById("askResult");
+  const transcriptHtml = renderChatTranscript(chatTranscriptLoaded);
+  out.innerHTML = (transcriptHtml || "") + (inProgressHtml || "");
+  out.scrollTop = out.scrollHeight;
+}
+
 async function handleAskResponse(resp) {
   askThreadId = resp.thread_id;
-  const out = document.getElementById("askResult");
   const questionBubble = renderChatQuestionBubble();
   if (resp.state === "paused") {
     if (resp.checkpoint === "answer_approval_request") {
-      out.innerHTML = questionBubble + `<div class="notice info">Paused for review: answer review (round ${resp.payload.revision_round ?? 0})</div>` + renderAnswerPayload(resp.payload);
+      renderChatPanelBody(questionBubble + `<div class="notice info">Paused for review: answer review (round ${resp.payload.revision_round ?? 0})</div>` + renderAnswerPayload(resp.payload));
       document.getElementById("answerDecisionSubmit").addEventListener("click", submitAnswerDecision);
     } else {
-      out.innerHTML = questionBubble + `<div class="notice info">Paused for review: evidence review</div>` + renderEvidencePayload(resp.payload);
+      renderChatPanelBody(questionBubble + `<div class="notice info">Paused for review: evidence review</div>` + renderEvidencePayload(resp.payload));
       document.getElementById("evidenceDecisionSubmit").addEventListener("click", submitEvidenceDecision);
     }
   } else {
     const answer = resp.result && resp.result.final_answer;
     const status = resp.result && resp.result.status;
-    out.innerHTML = questionBubble + (answer
+    renderChatPanelBody(questionBubble + (answer
       ? `<div class="exhibit"><span class="exhibit-label">Answered</span><h3>Final Answer</h3><div class="final-answer">${escapeHtml(answer)}</div></div>`
-      : `<div class="notice info">Completed. No answer returned (status: ${escapeHtml(status)}).</div>`);
+      : `<div class="notice info">Completed. No answer returned (status: ${escapeHtml(status)}).</div>`));
+    // this turn is now part of the transcript server-side; reload so a fresh
+    // question starts from the updated history instead of a stale local copy
+    if (currentDocument.documentId) await loadChatTranscript(currentDocument.documentId);
   }
 }
 
@@ -2334,11 +2387,11 @@ document.getElementById("askSubmit").addEventListener("click", async () => {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span>Asking&hellip;`;
   askCurrentQuestion = question;
-  document.getElementById("askResult").innerHTML = "";
+  renderChatPanelBody(`<div class="chat-question"><span class="label">You asked</span>${escapeHtml(question)}</div><div class="empty-note">Thinking&hellip;</div>`);
   try {
     const resp = await apiFetch("/api/query/jobs", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, collection_name: collection }),
+      body: JSON.stringify({ question, collection_name: collection, document_id: currentDocument.documentId || null }),
     });
     document.getElementById("askQuestion").value = "";
     await handleAskResponse(resp);
@@ -2361,11 +2414,30 @@ document.getElementById("askQuestion").addEventListener("keydown", (e) => {
 
 const chatLauncher = document.getElementById("chatLauncher");
 const chatPanel = document.getElementById("chatPanel");
-chatLauncher.addEventListener("click", () => {
+chatLauncher.addEventListener("click", async () => {
   chatPanel.classList.toggle("open");
+  if (chatPanel.classList.contains("open") && currentDocument.documentId) {
+    await loadChatTranscript(currentDocument.documentId);
+    renderChatPanelBody();
+  }
 });
 document.getElementById("chatPanelClose").addEventListener("click", () => {
   chatPanel.classList.remove("open");
+});
+
+document.getElementById("chatClearBtn").addEventListener("click", async () => {
+  const documentId = currentDocument.documentId;
+  if (!documentId) { alert("No document selected."); return; }
+  if (!confirm("Clear chat history for this document? The transcript stays in the audit log, but future questions won't remember these turns.")) return;
+  try {
+    await apiFetch(`/api/documents/${encodeURIComponent(documentId)}/chat/clear`, { method: "POST" });
+    chatTranscriptLoaded = [];
+    askThreadId = null;
+    askCurrentQuestion = null;
+    renderChatPanelBody(`<div class="chat-empty">Chat history cleared. Ask a new question to start a fresh conversation.</div>`);
+  } catch (e) {
+    alert(`Clear failed: ${e.message || e}`);
+  }
 });
 
 function renderChatDocLabel() {

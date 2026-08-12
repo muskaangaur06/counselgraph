@@ -14,6 +14,7 @@ from .dedup import clause_content_hash
 from .models import (
     ApprovalStep,
     AuditLog,
+    ChatMessage,
     Clause,
     ConfidentialityOverride,
     DecisionBrief,
@@ -809,3 +810,66 @@ def decide_approval_step(approval_step_id: str, decided_by: str, decision: str,
         session.flush()
 
         return _approval_step_dict(step)
+
+
+def _chat_message_dict(m: "ChatMessage") -> dict:
+    return {
+        "chat_message_id": m.chat_message_id, "document_id": m.document_id, "query_job_id": m.query_job_id,
+        "question": m.question, "answer": m.answer, "citations": m.citations or [], "status": m.status,
+        "asked_by": m.asked_by, "route": m.route, "created_at": m.created_at.isoformat(),
+    }
+
+
+def record_chat_message(document_id: str, question: str, answer: Optional[str], status: str,
+                         citations: Optional[list] = None, asked_by: Optional[str] = None,
+                         query_job_id: Optional[str] = None, retrieved_contexts: Optional[list] = None,
+                         route: Optional[str] = None) -> dict:
+    """Appends one chat turn. Called once the query graph reaches a terminal
+    state (answered/rejected/escalated/evidence_rejected/evidence_escalated) --
+    not on every intermediate pause, so a turn that's still mid-review isn't
+    yet part of the transcript or fed back in as memory."""
+    with get_session() as session:
+        row = ChatMessage(
+            document_id=document_id, query_job_id=query_job_id, question=question, answer=answer,
+            citations=citations or [], status=status, asked_by=asked_by,
+            retrieved_contexts=retrieved_contexts or [], route=route,
+        )
+        session.add(row)
+        session.flush()
+        return _chat_message_dict(row)
+
+
+def get_chat_history(document_id: str, include_cleared: bool = False) -> list[dict]:
+    """Ascending by created_at (oldest first, i.e. conversation order). By default
+    only returns turns after the document's chat_cleared_at marker (section 17.5's
+    'clear chat' action) -- pass include_cleared=True for a full-transcript view
+    (e.g. an audit/history screen) rather than what should be fed back in as
+    conversational memory."""
+    with get_session() as session:
+        doc = session.get(Document, document_id)
+        cleared_at = None if include_cleared or doc is None else doc.chat_cleared_at
+
+        stmt = select(ChatMessage).where(ChatMessage.document_id == document_id)
+        if cleared_at is not None:
+            stmt = stmt.where(ChatMessage.created_at > cleared_at)
+        stmt = stmt.order_by(ChatMessage.created_at.asc())
+
+        rows = session.execute(stmt).scalars().all()
+        return [_chat_message_dict(r) for r in rows]
+
+
+def clear_chat_history(document_id: str) -> dict:
+    """Sets Document.chat_cleared_at to now -- a soft clear (section 17.5's
+    'optional clear-chat action'). Existing ChatMessage rows are never deleted,
+    consistent with every other history table in this codebase; get_chat_history()
+    with its default include_cleared=False simply stops surfacing anything at or
+    before this marker as active conversational memory."""
+    from datetime import datetime, timezone
+
+    with get_session() as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            raise ValueError(f"No document found for document_id={document_id}")
+        doc.chat_cleared_at = datetime.now(timezone.utc)
+        session.flush()
+        return {"document_id": document_id, "chat_cleared_at": doc.chat_cleared_at.isoformat()}

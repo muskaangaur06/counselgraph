@@ -188,12 +188,41 @@ def classify_route(question: str) -> tuple[str, str, float]:
     return routes[0], reasoning, alpha
 
 
+# section 17.5's "standards context when relevant": a cheap deterministic
+# keyword match against the same clause_type vocabulary extraction.py's
+# expected-clause checklists already use, so a question like "what's the
+# liability cap here, and how does it compare to policy" can pull in
+# standards.resolve_standards() for "liability_cap" without an extra LLM call
+# just to name the clause type.
+_CLAUSE_TYPE_KEYWORDS = {
+    "termination": ["termination", "terminate"],
+    "liability_cap": ["liability cap", "limitation of liability", "cap on liability", "liability limit"],
+    "confidentiality": ["confidentiality", "non-disclosure", "nondisclosure"],
+    "governing_law": ["governing law", "applicable law", "jurisdiction clause"],
+    "indemnification": ["indemnification", "indemnity", "indemnify"],
+}
+
+
+def detect_clause_type_topic(question: str) -> Optional[str]:
+    """Returns the first matching clause_type the question names, or None.
+    Deliberately returns at most one -- this feeds a single resolve_standards()
+    lookup, not a multi-clause comparison."""
+    q_lower = question.lower()
+    for clause_type, keywords in _CLAUSE_TYPE_KEYWORDS.items():
+        if any(kw in q_lower for kw in keywords):
+            return clause_type
+    return None
+
+
 # auditor: verifies retrieved evidence before synthesis
 
 _AUDITOR_SYSTEM_PROMPT = """You are an evidence auditor for a legal research \
 system. You do NOT answer the question. You only assess whether the \
 evidence provided is sufficient, relevant, and internally consistent \
-enough to answer it responsibly.
+enough to answer it responsibly. If prior conversation turns are included, \
+use them only to understand what "it"/"that clause"/etc. in the current \
+question refers to -- do not treat an earlier answer itself as evidence for \
+the current one; still require the retrieved evidence below to support the answer.
 
 Respond with ONLY a JSON object (no prose, no markdown fences):
 {
@@ -204,8 +233,14 @@ Respond with ONLY a JSON object (no prose, no markdown fences):
 }"""
 
 
-def verify_evidence(question: str, hybrid_hits: list[dict], graph_hits: list[dict]) -> dict:
-    evidence = {"hybrid_search_results": hybrid_hits, "graph_query_results": graph_hits}
+def verify_evidence(question: str, hybrid_hits: list[dict], graph_hits: list[dict],
+                     conversation_history: Optional[list[dict]] = None,
+                     standards_context: Optional[dict] = None) -> dict:
+    evidence = {
+        "hybrid_search_results": hybrid_hits, "graph_query_results": graph_hits,
+        "prior_conversation_turns": conversation_history or [],
+        "applicable_standard": standards_context,
+    }
     user_prompt = f"Question: {question}\n\nEvidence (JSON):\n{json.dumps(evidence, default=str, indent=2)}"
     raw = call_json(_AUDITOR_SYSTEM_PROMPT, user_prompt)
     try:
@@ -222,7 +257,12 @@ def verify_evidence(question: str, hybrid_hits: list[dict], graph_hits: list[dic
 
 _SYNTHESIZER_SYSTEM_PROMPT = """You are a legal research assistant writing \
 the FINAL answer for a human reviewer. Use ONLY the evidence provided, \
-never speculate beyond it.
+never speculate beyond it. If prior conversation turns are included, use them \
+to resolve references in the current question (e.g. "that clause", "the same \
+party") and to avoid repeating context already given, but ground every \
+material claim in THIS turn's retrieved evidence, not in what an earlier \
+answer said. If an applicable company standard is included, explicitly \
+compare the contract's position against it where relevant to the question.
 
 Respond with ONLY a JSON object (no prose, no markdown fences):
 {
@@ -241,11 +281,14 @@ plain prose only."""
 
 
 def synthesize_legal_answer(question: str, hybrid_hits: list[dict], graph_hits: list[dict],
-                             evidence_verdict: dict) -> dict:
+                             evidence_verdict: dict, conversation_history: Optional[list[dict]] = None,
+                             standards_context: Optional[dict] = None) -> dict:
     evidence = {
         "hybrid_search_results": hybrid_hits,
         "graph_query_results": graph_hits,
         "evidence_auditor_verdict": evidence_verdict,
+        "prior_conversation_turns": conversation_history or [],
+        "applicable_standard": standards_context,
     }
     user_prompt = f"Question: {question}\n\nVerified evidence (JSON):\n{json.dumps(evidence, default=str, indent=2)}"
     raw = call_json(_SYNTHESIZER_SYSTEM_PROMPT, user_prompt, max_tokens=1500)
