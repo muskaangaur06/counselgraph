@@ -35,16 +35,20 @@ def _llm_generate_fallback(clause_text: str, risk_rationale: str) -> dict:
 
 
 def build_playbook_entry(clause_text: str, clause_type: Optional[str], risk_rationale: str,
-                          org_profile_id: Optional[str] = None) -> dict:
+                          org_profile_id: Optional[str] = None, standards_context: Optional[dict] = None) -> dict:
     """Returns {"current_language", "fallback_positions", "fallback_source", "suggested_redline"}.
     fallback_source is "org_profile" when the org profile has pre-defined approved
     language for this clause_type (used as the single ideal fallback position plus
-    the current language as the acceptable floor), else "llm_generated"."""
+    the current language as the acceptable floor), else "llm_generated".
+
+    standards_context (optional, Phase 5): see deviation.compute_deviation -- when
+    given, the approved language is resolved through the 8-level hierarchy.
+    """
     approved_text = None
     if clause_type:
         try:
             from ..db.repository import get_approved_clause_language
-            approved_text = get_approved_clause_language(clause_type, org_profile_id)
+            approved_text = get_approved_clause_language(clause_type, org_profile_id, standards_context=standards_context)
         except Exception:
             approved_text = None
 

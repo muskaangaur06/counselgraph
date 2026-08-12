@@ -79,9 +79,10 @@ async def lifespan(app: FastAPI):
     preload_models(include_neo4j=False)  # Neo4j connected separately below
 
     try:
-        from ..db.session import init_db, seed_defaults
+        from ..db.session import init_db, seed_defaults, seed_demo_standards
         init_db()
         seed_defaults()
+        seed_demo_standards()
         print("Postgres tables ready.")
     except Exception as e:
         print(f"WARNING: could not initialize Postgres tables ({type(e).__name__}: {e}). "
@@ -637,6 +638,37 @@ async def override_confidentiality_endpoint(document_id: str, body: Confidential
 async def get_confidentiality_history_endpoint(document_id: str) -> dict:
     from ..db.repository import get_confidentiality_history
     return {"history": get_confidentiality_history(document_id)}
+
+
+# standards resolution (section 11): resolves the applicable approved-clause
+# standard for a document's context through the 8-level hierarchy, given a
+# document_id (its business_unit/geography/document_type/org_profile_id are
+# read from the row) and a clause_type to resolve.
+@app.get("/api/documents/{document_id}/standards", dependencies=[Depends(require_session)])
+async def resolve_document_standards_endpoint(document_id: str, clause_type: str) -> dict:
+    from ..db.repository import (
+        get_document, resolve_business_unit_id, resolve_jurisdiction_id, get_org_profile_customer_id,
+    )
+    from ..graphrag.standards import resolve_standards, check_mandatory_and_prohibited
+
+    doc = get_document(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"No document found for document_id={document_id}")
+
+    org_profile_id = doc.get("org_profile_id")
+    business_unit_id = resolve_business_unit_id(org_profile_id, doc.get("business_unit"))
+    jurisdiction_id = resolve_jurisdiction_id(doc.get("geography"))
+    customer_id = get_org_profile_customer_id(org_profile_id)
+
+    result = resolve_standards(
+        clause_type=clause_type, document_type=doc.get("document_type"), org_profile_id=org_profile_id,
+        business_unit_id=business_unit_id, jurisdiction_id=jurisdiction_id, customer_id=customer_id,
+    )
+    result["mandatory_and_prohibited"] = check_mandatory_and_prohibited(
+        clause_type=clause_type, document_type=doc.get("document_type"), org_profile_id=org_profile_id,
+        business_unit_id=business_unit_id, jurisdiction_id=jurisdiction_id, customer_id=customer_id,
+    )
+    return _jsonable(result)
 
 
 # cross-portfolio conflict detection (section 6): scope by org_profile_id or

@@ -142,6 +142,61 @@ def seed_defaults() -> None:
             profile.customer_id = customer.customer_id
 
 
+# Phase 5 demo data (section 11.4): three org profiles across different
+# industries under the same customer, each with its own liability standard,
+# to demonstrate the resolution hierarchy actually producing different
+# results for the same clause_type depending on context -- not hardcoded UI
+# text. Get-or-create by profile name (scoped to the seed customer), same
+# idempotency pattern as seed_defaults().
+_DEMO_ORG_PROFILES = [
+    # (name, industry_sector, liability standard title, liability standard text)
+    ("TCS", "IT Services", "TCS IT-Services Liability Position",
+     "Each party's aggregate liability under this agreement shall not exceed the "
+     "fees paid in the twelve (12) months preceding the claim, excluding liability "
+     "for data breach, confidentiality breach, or IP infringement, which shall be uncapped."),
+    ("Tata Steel", "Manufacturing", "Tata Steel Manufacturing Liability Position",
+     "Liability is capped at the contract value except for claims arising from "
+     "environmental non-compliance, workplace safety incidents, or industrial "
+     "accidents, which remain uncapped and subject to applicable environmental law."),
+    ("Tata Motors", "Automotive", "Tata Motors Product-Liability Position",
+     "Liability for product defects, recalls, and personal injury or property "
+     "damage arising from vehicle components supplied under this agreement is "
+     "uncapped; liability for all other claims is capped at two (2) times the contract value."),
+]
+
+
+def seed_demo_standards() -> None:
+    """Idempotent: creates the three demo org profiles above (if missing) under
+    the default customer, plus one liability KnowledgeReference standard each,
+    scoped at the organization+document_type level (org_profile_id + document_type
+    unset = applies to all document types for that org). Safe to call on every
+    startup. Does not touch the 3 pre-existing org profiles or their 57
+    knowledge_reference rows."""
+    from .models import Customer, KnowledgeReference, OrgProfile
+
+    with get_session() as session:
+        customer = session.query(Customer).filter_by(code=DEFAULT_CUSTOMER_CODE).one_or_none()
+        if customer is None:
+            return  # seed_defaults() hasn't run yet; nothing to attach these to
+
+        for name, industry_sector, title, reference_text in _DEMO_ORG_PROFILES:
+            profile = session.query(OrgProfile).filter_by(name=name, customer_id=customer.customer_id).one_or_none()
+            if profile is None:
+                profile = OrgProfile(name=name, customer_id=customer.customer_id, industry_sector=industry_sector)
+                session.add(profile)
+                session.flush()
+
+            existing_ref = session.query(KnowledgeReference).filter_by(
+                org_profile_id=profile.profile_id, clause_type="liability", source_kind="approved_clause",
+            ).one_or_none()
+            if existing_ref is None:
+                session.add(KnowledgeReference(
+                    customer_id=customer.customer_id, org_profile_id=profile.profile_id,
+                    clause_type="liability", title=title, reference_text=reference_text,
+                    source_kind="approved_clause", approval_status="approved", version=1,
+                ))
+
+
 def reset_engine_for_tests() -> None:
     """Test-only: drops the cached engine/session factory so a fresh DATABASE_URL env var takes effect."""
     global _engine, _SessionLocal

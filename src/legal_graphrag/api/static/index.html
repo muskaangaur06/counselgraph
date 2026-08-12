@@ -1457,6 +1457,75 @@ document.addEventListener("submit", async (e) => {
   }
 });
 
+function renderStandardsLookupBlock(doc) {
+  return `
+    <div class="exhibit" id="standardsBlock">
+      <span class="exhibit-label">Standards</span>
+      <h3>Resolution Hierarchy</h3>
+      <div class="clause-meta">Resolve the applicable approved-clause standard for this document's business unit/jurisdiction/document type (section 11).</div>
+      <form id="standardsLookupForm" style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+        <input type="hidden" id="standardsLookupDocId" value="${escapeHtml(doc.document_id || "")}" />
+        <div>
+          <label for="standardsLookupClauseType">Clause type</label>
+          <input type="text" id="standardsLookupClauseType" placeholder="e.g. liability, termination" />
+        </div>
+        <button type="submit" class="secondary">Resolve</button>
+      </form>
+      <div id="standardsLookupResult" style="margin-top:12px;"></div>
+    </div>
+  `;
+}
+
+function renderStandardsResult(result) {
+  if (!result.scope_level) {
+    return `<div class="clause-meta">${escapeHtml(result.reason || "No standard found for this context.")}</div>`;
+  }
+  let html = `
+    <div class="clause-meta">Scope level: <b>${escapeHtml(result.scope_level.replace(/_/g, " "))}</b> &middot; ${escapeHtml(result.reason || "")}</div>
+  `;
+  for (const s of result.selected || []) {
+    html += `
+      <div style="margin-top:10px; padding:10px; border:1px solid var(--rule); border-radius:var(--radius-sm);">
+        <div class="clause-meta">${escapeHtml(s.title || s.source_kind)} &middot; v${escapeHtml(String(s.version))} &middot; ${escapeHtml(s.approval_status)}</div>
+        <div style="font-family:var(--sans); font-size:15px; margin-top:4px;">${escapeHtml(s.reference_text)}</div>
+      </div>
+    `;
+  }
+  if ((result.conflicts || []).length) {
+    html += `<div class="clause-meta" style="margin-top:10px;">Conflicting standards (older version, not selected)</div><ul style="font-family:var(--sans); font-size:14px;">`;
+    for (const c of result.conflicts) {
+      html += `<li>${escapeHtml(c.title || c.source_kind)} v${escapeHtml(String(c.version))}: ${escapeHtml(c.reference_text)}</li>`;
+    }
+    html += `</ul>`;
+  }
+  const mp = result.mandatory_and_prohibited || {};
+  if ((mp.mandatory || []).length) {
+    html += `<div class="stamp gap" style="margin-top:10px;">Mandatory requirements apply</div>`;
+  }
+  if ((mp.prohibited || []).length) {
+    html += `<div class="stamp high" style="margin-top:10px;">Prohibited clauses apply</div>`;
+  }
+  return html;
+}
+
+document.addEventListener("submit", async (e) => {
+  if (e.target.id !== "standardsLookupForm") return;
+  e.preventDefault();
+  const documentId = document.getElementById("standardsLookupDocId").value;
+  const clauseType = document.getElementById("standardsLookupClauseType").value.trim();
+  const resultEl = document.getElementById("standardsLookupResult");
+  if (!clauseType) {
+    resultEl.innerHTML = `<div class="clause-meta">Enter a clause type to resolve.</div>`;
+    return;
+  }
+  try {
+    const result = await apiFetch(`/api/documents/${encodeURIComponent(documentId)}/standards?clause_type=${encodeURIComponent(clauseType)}`);
+    resultEl.innerHTML = renderStandardsResult(result);
+  } catch (err) {
+    resultEl.innerHTML = `<div class="notice error">${escapeHtml(err.message || String(err))}</div>`;
+  }
+});
+
 function renderDocumentDetail(doc) {
   let html = `
     <div class="exhibit">
@@ -1475,6 +1544,7 @@ function renderDocumentDetail(doc) {
   `;
 
   html += renderConfidentialityBlock(doc);
+  html += renderStandardsLookupBlock(doc);
 
   if (doc.executive_summary) {
     html += `

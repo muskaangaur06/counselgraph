@@ -250,6 +250,27 @@ def risk_flag_node(state: IngestionState) -> dict:
         except Exception:
             risk_threshold_overrides = {}
 
+    # Phase 5: resolve the document's standards-hierarchy scope once, reused for
+    # every clause below (deviation scoring + playbook fallback both need it).
+    # Falls back to org_profile_id-only resolution (Phase 4's behavior) if the
+    # document row or its business_unit/geography can't be resolved -- never a
+    # hard failure, deviation scoring must keep working either way.
+    standards_context = {"org_profile_id": org_profile_id, "business_unit_id": None,
+                         "jurisdiction_id": None, "document_type": None, "customer_id": None}
+    if state.get("document_id"):
+        try:
+            from ..db.repository import (
+                get_document, resolve_business_unit_id, resolve_jurisdiction_id, get_org_profile_customer_id,
+            )
+            doc = get_document(state["document_id"])
+            if doc:
+                standards_context["document_type"] = doc.get("document_type")
+                standards_context["business_unit_id"] = resolve_business_unit_id(org_profile_id, doc.get("business_unit"))
+                standards_context["jurisdiction_id"] = resolve_jurisdiction_id(doc.get("geography"))
+                standards_context["customer_id"] = get_org_profile_customer_id(org_profile_id)
+        except Exception as e:  # noqa: BLE001
+            print(f"[risk_flag] WARNING: standards context resolution failed: {type(e).__name__}: {e}")
+
     for r in risks:
         clause = clause_by_id.get(r["clause_id"], {})
 
@@ -262,6 +283,7 @@ def risk_flag_node(state: IngestionState) -> dict:
                 clause_type=clause.get("clause_type"),
                 org_profile_id=org_profile_id,
                 embedder=embedder,
+                standards_context=standards_context,
             )
         except Exception as e:  # noqa: BLE001
             print(f"[risk_flag] WARNING: deviation scoring failed: {type(e).__name__}: {e}")
@@ -311,6 +333,7 @@ def risk_flag_node(state: IngestionState) -> dict:
                         clause_type=clause.get("clause_type"),
                         risk_rationale=r["reason"],
                         org_profile_id=org_profile_id,
+                        standards_context=standards_context,
                     )
                     create_playbook_entry(
                         risk_flag_id=pg_flag_id,

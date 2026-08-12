@@ -35,7 +35,9 @@ def get_org_profile(profile_id: str) -> Optional[dict]:
             return None
         return {
             "profile_id": profile.profile_id,
+            "customer_id": profile.customer_id,
             "name": profile.name,
+            "industry_sector": profile.industry_sector,
             "jurisdiction_defaults": profile.jurisdiction_defaults or {},
             "required_clause_checklist": profile.required_clause_checklist or {},
             "risk_threshold_overrides": profile.risk_threshold_overrides or {},
@@ -407,9 +409,141 @@ def find_knowledge_references(clause_type: Optional[str] = None, org_profile_id:
         ]
 
 
-def get_approved_clause_language(clause_type: str, org_profile_id: Optional[str] = None) -> Optional[str]:
+def get_approved_clause_language(clause_type: str, org_profile_id: Optional[str] = None,
+                                  standards_context: Optional[dict] = None) -> Optional[str]:
     """Returns the best-matching approved clause text for a clause_type, used by
-    section 4's deviation scoring and section 5's playbook fallback positions."""
+    section 4's deviation scoring and section 5's playbook fallback positions.
+    When standards_context (business_unit_id/jurisdiction_id/document_type/
+    customer_id) is given, resolves through the Phase 5 8-level hierarchy
+    (graphrag/standards.py) instead of the simple org_profile_id-only lookup --
+    same clause_type, same org_profile_id, but a more specific match wins when
+    one exists. Falls back to the simple lookup if standards_context is absent
+    or resolution finds nothing, so pre-Phase-5 callers are unaffected."""
+    if standards_context:
+        try:
+            from ..graphrag.standards import resolve_standards
+            result = resolve_standards(
+                clause_type=clause_type, document_type=standards_context.get("document_type"),
+                org_profile_id=org_profile_id, business_unit_id=standards_context.get("business_unit_id"),
+                jurisdiction_id=standards_context.get("jurisdiction_id"), customer_id=standards_context.get("customer_id"),
+            )
+            approved = [s for s in result["selected"] if s["source_kind"] == "approved_clause"]
+            if approved:
+                return approved[0]["reference_text"]
+        except Exception:
+            pass  # fall through to the simple lookup below
+
     refs = find_knowledge_references(clause_type=clause_type, org_profile_id=org_profile_id, approval_status="approved")
     refs = [r for r in refs if r["source_kind"] == "approved_clause"]
     return refs[0]["reference_text"] if refs else None
+
+
+def resolve_business_unit_id(org_profile_id: Optional[str], business_unit_name: Optional[str]) -> Optional[str]:
+    """Looks up a business_unit row by name or code, scoped to org_profile_id
+    (a document's free-text business_unit field is matched against this, since
+    Document has no FK to business_unit -- see models.py comment on Document.business_unit)."""
+    if not org_profile_id or not business_unit_name:
+        return None
+    from .models import BusinessUnit
+    with get_session() as session:
+        row = session.execute(
+            select(BusinessUnit).where(
+                BusinessUnit.org_profile_id == org_profile_id,
+                (BusinessUnit.name == business_unit_name) | (BusinessUnit.code == business_unit_name),
+            )
+        ).scalars().first()
+        return row.business_unit_id if row else None
+
+
+def resolve_jurisdiction_id(jurisdiction_name_or_code: Optional[str]) -> Optional[str]:
+    """Looks up a jurisdiction row by name or code (a document's free-text geography
+    field is matched against this, since Document has no FK to jurisdiction)."""
+    if not jurisdiction_name_or_code:
+        return None
+    from .models import Jurisdiction
+    with get_session() as session:
+        row = session.execute(
+            select(Jurisdiction).where(
+                (Jurisdiction.name == jurisdiction_name_or_code) | (Jurisdiction.code == jurisdiction_name_or_code.upper())
+            )
+        ).scalars().first()
+        return row.jurisdiction_id if row else None
+
+
+def get_org_profile_customer_id(org_profile_id: Optional[str]) -> Optional[str]:
+    if not org_profile_id:
+        return None
+    with get_session() as session:
+        profile = session.get(OrgProfile, org_profile_id)
+        return profile.customer_id if profile else None
+
+
+def find_standards_candidates(clause_type: Optional[str], document_type: Optional[str],
+                               org_profile_id: Optional[str], business_unit_id: Optional[str],
+                               jurisdiction_id: Optional[str], customer_id: Optional[str],
+                               include_unapproved: bool = False) -> list[dict]:
+    """Pulls every KnowledgeReference row that COULD apply to this context --
+    matching clause_type exactly, and matching org_profile_id/business_unit_id/
+    jurisdiction_id/document_type/customer_id only where the row itself sets that
+    scope (a null scope column on the row means "not restricted to a specific X",
+    not "excluded"). Never returns rows for a different customer_id -- section
+    11.3's tenant-isolation rule. The resolve_standards() service in
+    graphrag/standards.py is what actually ranks/selects from this candidate set;
+    this function's job is just a safe, tenant-scoped SQL filter."""
+    with get_session() as session:
+        stmt = select(KnowledgeReference)
+        if clause_type:
+            stmt = stmt.where(KnowledgeReference.clause_type == clause_type)
+        if not include_unapproved:
+            stmt = stmt.where(KnowledgeReference.approval_status == "approved")
+
+        # tenant isolation: a row scoped to a customer_id may only be seen by that
+        # customer; a row with no customer_id at all is treated as a customer/group
+        # fallback (hierarchy level 8) visible to everyone -- never cross a real
+        # customer_id boundary.
+        if customer_id:
+            stmt = stmt.where((KnowledgeReference.customer_id == customer_id) | (KnowledgeReference.customer_id.is_(None)))
+        else:
+            stmt = stmt.where(KnowledgeReference.customer_id.is_(None))
+
+        rows = session.execute(stmt).scalars().all()
+
+        def _scope_compatible(row: KnowledgeReference) -> bool:
+            if row.org_profile_id and row.org_profile_id != org_profile_id:
+                return False
+            if row.business_unit_id and row.business_unit_id != business_unit_id:
+                return False
+            if row.jurisdiction_id and row.jurisdiction_id != jurisdiction_id:
+                return False
+            if row.document_type and document_type and row.document_type != document_type:
+                return False
+            if row.document_type and not document_type:
+                return False
+            return True
+
+        compatible = [r for r in rows if _scope_compatible(r)]
+
+        return [
+            {
+                "knowledge_reference_id": r.knowledge_reference_id,
+                "clause_type": r.clause_type,
+                "title": r.title,
+                "reference_text": r.reference_text,
+                "source_kind": r.source_kind,
+                "approval_status": r.approval_status,
+                "is_mandatory": r.is_mandatory,
+                "is_prohibited": r.is_prohibited,
+                "effective_date": r.effective_date.isoformat() if r.effective_date else None,
+                "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
+                "version": r.version,
+                "customer_id": r.customer_id,
+                "org_profile_id": r.org_profile_id,
+                "business_unit_id": r.business_unit_id,
+                "jurisdiction_id": r.jurisdiction_id,
+                "document_type": r.document_type,
+                "business_unit_scope": r.business_unit_scope,
+                "jurisdiction_scope": r.jurisdiction_scope,
+                "extra": r.extra,
+            }
+            for r in compatible
+        ]

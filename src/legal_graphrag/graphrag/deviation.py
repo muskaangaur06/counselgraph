@@ -28,18 +28,22 @@ def _summarize(text: str, max_chars: int = 240) -> str:
 
 
 def compute_deviation(clause_text: str, clause_embedding: list[float], clause_type: Optional[str],
-                       org_profile_id: Optional[str], embedder) -> Optional[dict]:
+                       org_profile_id: Optional[str], embedder, standards_context: Optional[dict] = None) -> Optional[dict]:
     """Returns None if there's no approved language on file for this clause_type
     (nothing to compare against), else a dict with:
       approved_position, contract_position, deviation_score (cosine similarity,
       1.0 = identical), delta (1 - similarity), confidence (derived from the
       similarity magnitude, not another LLM call).
+
+    standards_context (optional, Phase 5): business_unit_id/jurisdiction_id/
+    document_type/customer_id -- when given, the approved language is resolved
+    through the 8-level standards hierarchy instead of org_profile_id alone.
     """
     if not clause_type:
         return None
     try:
         from ..db.repository import get_approved_clause_language
-        approved_text = get_approved_clause_language(clause_type, org_profile_id)
+        approved_text = get_approved_clause_language(clause_type, org_profile_id, standards_context=standards_context)
     except Exception:
         approved_text = None
 

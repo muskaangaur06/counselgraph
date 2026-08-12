@@ -120,9 +120,9 @@ class Document(Base):
     storage_key: Mapped[str] = mapped_column(String(500), nullable=True)  # MinIO object key
     collection_name: Mapped[str] = mapped_column(String(500), nullable=True)  # Chroma collection this document's chunks live in
     document_type: Mapped[str] = mapped_column(String(100), nullable=True)  # contract_type
-    business_unit: Mapped[str] = mapped_column(String(200), nullable=True)
+    business_unit: Mapped[str] = mapped_column(String(200), nullable=True)  # free-text name/code, resolved against business_unit.name/code for standards lookup
     counterparty: Mapped[str] = mapped_column(String(200), nullable=True)
-    geography: Mapped[str] = mapped_column(String(100), nullable=True)
+    geography: Mapped[str] = mapped_column(String(100), nullable=True)  # free-text name/code, resolved against jurisdiction.name/code for standards lookup
     confidentiality_level: Mapped[str] = mapped_column(String(50), nullable=True)
     confidentiality_confidence: Mapped[float] = mapped_column(Float, nullable=True)
     confidentiality_source: Mapped[str] = mapped_column(String(20), nullable=True)  # automatic/manual_override/default
@@ -258,16 +258,28 @@ class ConfidentialityOverride(Base):
 
 class KnowledgeReference(Base):
     """Clause-library / policy entries used by RAG retrieval, filterable and rankable
-    by approval_status, business_unit_scope, and jurisdiction_scope (guideline 5.4)."""
+    by approval_status, business_unit_scope, and jurisdiction_scope (guideline 5.4).
+    Phase 5 adds document_type/customer_id/business_unit_id/effective/expiry so the
+    8-level resolution hierarchy (section 11.1) has real scope levels to match on,
+    on top of the pre-existing string-based business_unit_scope/jurisdiction_scope
+    (kept for the 57 existing rows seeded before business_unit rows existed)."""
     __tablename__ = "knowledge_reference"
 
     knowledge_reference_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customer.customer_id"), nullable=True)
     org_profile_id: Mapped[str] = mapped_column(String(36), ForeignKey("org_profile.profile_id"), nullable=True)
+    business_unit_id: Mapped[str] = mapped_column(String(36), ForeignKey("business_unit.business_unit_id"), nullable=True)
+    jurisdiction_id: Mapped[str] = mapped_column(String(36), ForeignKey("jurisdiction.jurisdiction_id"), nullable=True)
+    document_type: Mapped[str] = mapped_column(String(100), nullable=True)  # contract_type; null = applies to all types
     clause_type: Mapped[str] = mapped_column(String(100), nullable=True)
     title: Mapped[str] = mapped_column(String(300), nullable=True)
     reference_text: Mapped[str] = mapped_column(Text, nullable=False)
     source_kind: Mapped[str] = mapped_column(String(50), default="approved_clause")  # approved_clause / risk_taxonomy / policy
     approval_status: Mapped[str] = mapped_column(String(20), default="approved")  # approved/unapproved/outdated
+    is_mandatory: Mapped[bool] = mapped_column(Boolean, default=False)  # jurisdiction-mandatory requirements (11.2)
+    is_prohibited: Mapped[bool] = mapped_column(Boolean, default=False)  # prohibited-clause entries (11.2)
+    effective_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    expiry_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
     business_unit_scope: Mapped[str] = mapped_column(String(200), nullable=True)
     jurisdiction_scope: Mapped[str] = mapped_column(String(100), nullable=True)
