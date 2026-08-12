@@ -12,9 +12,11 @@ from sqlalchemy import select
 
 from .dedup import clause_content_hash
 from .models import (
+    ApprovalStep,
     AuditLog,
     Clause,
     ConfidentialityOverride,
+    DecisionBrief,
     Document,
     KnowledgeReference,
     OrgProfile,
@@ -125,6 +127,12 @@ def get_document(document_id: str) -> Optional[dict]:
             "status": doc.status,
             "job_id": doc.job_id,
             "contract_id": doc.contract_id,
+            "parties": doc.parties,
+            "subject_matter": doc.subject_matter,
+            "effective_date": doc.effective_date,
+            "end_date": doc.end_date,
+            "monetary_value": doc.monetary_value,
+            "governing_law_country": doc.governing_law_country,
         }
 
 
@@ -623,3 +631,181 @@ def find_standards_candidates(clause_type: Optional[str], document_type: Optiona
             }
             for r in compatible
         ]
+
+
+def _approval_step_dict(s: "ApprovalStep") -> dict:
+    return {
+        "approval_step_id": s.approval_step_id, "sequence": s.sequence, "required_role": s.required_role,
+        "reason": s.reason, "status": s.status, "decided_by": s.decided_by,
+        "decided_at": s.decided_at.isoformat() if s.decided_at else None,
+        "comments": s.comments, "required_changes": s.required_changes, "send_back_reason": s.send_back_reason,
+        "created_at": s.created_at.isoformat(),
+    }
+
+
+def _decision_brief_dict(b: "DecisionBrief", steps: list[dict]) -> dict:
+    return {
+        "decision_brief_id": b.decision_brief_id, "document_id": b.document_id,
+        "version_number": b.version_number, "generated_by": b.generated_by, "sections": b.sections,
+        "recommendation": b.recommendation, "evidence_validated": b.evidence_validated,
+        "unsupported_statements": b.unsupported_statements or [], "status": b.status,
+        "superseded_by_version": b.superseded_by_version, "created_at": b.created_at.isoformat(),
+        "approval_steps": steps,
+    }
+
+
+def create_decision_brief(document_id: str, generated_by: str, sections: dict, recommendation: str,
+                           evidence_validated: bool, unsupported_statements: list[str],
+                           approval_chain: list[dict]) -> dict:
+    """Always creates a new version (append-only, same convention as
+    SummaryVersion) -- a send-back on an earlier version marks it superseded
+    rather than deleting or mutating it (section 15.4: correction requires a
+    new event/version, not deletion)."""
+    with get_session() as session:
+        last = session.execute(
+            select(DecisionBrief)
+            .where(DecisionBrief.document_id == document_id)
+            .order_by(DecisionBrief.version_number.desc())
+        ).scalars().first()
+        next_version = (last.version_number + 1) if last else 1
+
+        brief = DecisionBrief(
+            document_id=document_id, version_number=next_version, generated_by=generated_by,
+            sections=sections, recommendation=recommendation, evidence_validated=evidence_validated,
+            unsupported_statements=unsupported_statements,
+        )
+        session.add(brief)
+        session.flush()
+
+        if last is not None and last.status == "sent_back":
+            last.superseded_by_version = next_version
+
+        steps = []
+        for i, step in enumerate(approval_chain):
+            row = ApprovalStep(
+                decision_brief_id=brief.decision_brief_id, sequence=i,
+                required_role=step["required_role"], reason=step.get("reason"),
+            )
+            session.add(row)
+            steps.append(row)
+        session.flush()
+
+        return _decision_brief_dict(brief, [_approval_step_dict(s) for s in steps])
+
+
+def get_latest_decision_brief(document_id: str) -> Optional[dict]:
+    with get_session() as session:
+        brief = session.execute(
+            select(DecisionBrief)
+            .where(DecisionBrief.document_id == document_id)
+            .order_by(DecisionBrief.version_number.desc())
+        ).scalars().first()
+        if brief is None:
+            return None
+        steps = session.execute(
+            select(ApprovalStep)
+            .where(ApprovalStep.decision_brief_id == brief.decision_brief_id)
+            .order_by(ApprovalStep.sequence.asc())
+        ).scalars().all()
+        return _decision_brief_dict(brief, [_approval_step_dict(s) for s in steps])
+
+
+def get_decision_brief_history(document_id: str) -> list[dict]:
+    with get_session() as session:
+        briefs = session.execute(
+            select(DecisionBrief)
+            .where(DecisionBrief.document_id == document_id)
+            .order_by(DecisionBrief.version_number.asc())
+        ).scalars().all()
+        result = []
+        for brief in briefs:
+            steps = session.execute(
+                select(ApprovalStep)
+                .where(ApprovalStep.decision_brief_id == brief.decision_brief_id)
+                .order_by(ApprovalStep.sequence.asc())
+            ).scalars().all()
+            result.append(_decision_brief_dict(brief, [_approval_step_dict(s) for s in steps]))
+        return result
+
+
+def get_decision_brief(decision_brief_id: str) -> Optional[dict]:
+    with get_session() as session:
+        brief = session.get(DecisionBrief, decision_brief_id)
+        if brief is None:
+            return None
+        steps = session.execute(
+            select(ApprovalStep)
+            .where(ApprovalStep.decision_brief_id == brief.decision_brief_id)
+            .order_by(ApprovalStep.sequence.asc())
+        ).scalars().all()
+        return _decision_brief_dict(brief, [_approval_step_dict(s) for s in steps])
+
+
+def get_next_pending_approval_step(decision_brief_id: str) -> Optional[dict]:
+    """The current assigned approver per 15.4's 'only the current assigned
+    approver ... can decide' -- the first step in sequence order that's still
+    pending. Once every step is decided, returns None."""
+    with get_session() as session:
+        step = session.execute(
+            select(ApprovalStep)
+            .where(ApprovalStep.decision_brief_id == decision_brief_id, ApprovalStep.status == "pending")
+            .order_by(ApprovalStep.sequence.asc())
+        ).scalars().first()
+        return _approval_step_dict(step) if step else None
+
+
+def decide_approval_step(approval_step_id: str, decided_by: str, decision: str,
+                          comments: Optional[str] = None, required_changes: Optional[str] = None,
+                          send_back_reason: Optional[str] = None) -> dict:
+    """Applies one approval decision (approve/approve_with_changes/reject/send_back).
+    Section 15.4 rules (comments required for reject, required_changes required for
+    approve_with_changes, reason required for send_back) are enforced by the caller
+    (the API layer, consistent with how confidentiality override validation is done
+    at the API/schema layer, not buried in the repository) -- this function trusts
+    its inputs and just persists the decision as an immutable event. If this step
+    is the last one and the decision is a terminal approval, the parent
+    DecisionBrief's status is updated to match; a send_back marks the brief
+    'sent_back' so a new review cycle/version is expected next."""
+    from datetime import datetime, timezone
+
+    with get_session() as session:
+        step = session.get(ApprovalStep, approval_step_id)
+        if step is None:
+            raise ValueError(f"No approval step found for approval_step_id={approval_step_id}")
+        if step.status != "pending":
+            raise ValueError(f"Approval step {approval_step_id} is not pending (status={step.status})")
+
+        step.status = decision
+        step.decided_by = decided_by
+        step.decided_at = datetime.now(timezone.utc)
+        step.comments = comments
+        step.required_changes = required_changes
+        step.send_back_reason = send_back_reason
+        session.flush()
+
+        brief = session.get(DecisionBrief, step.decision_brief_id)
+        if decision in ("reject", "send_back"):
+            brief.status = decision
+            # a reject/send-back stops the chain -- remaining steps never become
+            # "current" (section 15.4 implies later approvers only ever see a
+            # brief that reached them, not one already killed earlier in the chain)
+            still_pending = session.execute(
+                select(ApprovalStep).where(
+                    ApprovalStep.decision_brief_id == step.decision_brief_id,
+                    ApprovalStep.status == "pending",
+                )
+            ).scalars().all()
+            for other in still_pending:
+                other.status = "skipped"
+        else:
+            remaining = session.execute(
+                select(ApprovalStep).where(
+                    ApprovalStep.decision_brief_id == step.decision_brief_id,
+                    ApprovalStep.status == "pending",
+                )
+            ).scalars().first()
+            if remaining is None:
+                brief.status = decision  # last step decided: brief takes on its final decision
+        session.flush()
+
+        return _approval_step_dict(step)

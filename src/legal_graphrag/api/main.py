@@ -552,6 +552,9 @@ async def get_document_detail(document_id: str, reviewer: dict = Depends(get_cur
 
         override_history = get_confidentiality_history(document_id)
 
+        from ..db.repository import get_latest_decision_brief
+        latest_decision_brief = get_latest_decision_brief(document_id)
+
         return _jsonable({
             "document_id": doc.document_id, "filename": doc.filename, "document_type": doc.document_type,
             "collection_name": doc.collection_name,
@@ -569,6 +572,10 @@ async def get_document_detail(document_id: str, reviewer: dict = Depends(get_cur
             "executive_summary": executive_summary,
             "latest_summary_version": latest_summary_version,
             "summary_versions": summary_versions,
+            "parties": doc.parties, "subject_matter": doc.subject_matter,
+            "effective_date": doc.effective_date, "end_date": doc.end_date,
+            "monetary_value": doc.monetary_value, "governing_law_country": doc.governing_law_country,
+            "latest_decision_brief": latest_decision_brief,
         })
 
 
@@ -652,6 +659,208 @@ _OVERRIDE_ROLES = ("senior_counsel", "admin")
 class ConfidentialityOverrideRequest(BaseModel):
     new_level: str = Field(..., description="public/internal/confidential/highly_confidential")
     reason: str = Field(..., min_length=1, max_length=2000)
+
+
+def _gather_decision_brief_context(document_id: str) -> dict:
+    """Assembles everything section 15.2.2 lists into one payload shared by
+    brief generation and (later) any future re-validation -- kept as a helper
+    so /decision-brief doesn't duplicate get_document_detail's query logic."""
+    from ..db.session import get_session
+    from ..db.models import Document, Clause, RiskFlag
+    from sqlalchemy import select
+    from ..db.repository import get_latest_summary_version
+    from ..graphrag.extraction import detect_missing_clauses
+    from ..graphrag.standards import resolve_standards
+
+    with get_session() as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail=f"No document found for document_id={document_id}")
+
+        clauses = session.execute(select(Clause).where(Clause.document_id == document_id)).scalars().all()
+        clause_payload = []
+        for c in clauses:
+            flags = session.execute(select(RiskFlag).where(RiskFlag.clause_id == c.clause_id)).scalars().all()
+            clause_payload.append({
+                "clause_type": c.clause_type, "page_reference": c.page_reference, "party": c.party,
+                "risk_flags": [
+                    {"category": f.category, "severity": f.severity, "rationale": f.rationale,
+                     "reviewer_status": f.reviewer_status, "standards_evidence": f.standards_evidence}
+                    for f in flags
+                ],
+            })
+        document_level_flags = session.execute(
+            select(RiskFlag).where(RiskFlag.document_id == document_id, RiskFlag.clause_id.is_(None))
+        ).scalars().all()
+        document_risk_flags = [
+            {"category": f.category, "severity": f.severity, "rationale": f.rationale,
+             "reviewer_status": f.reviewer_status, "standards_evidence": f.standards_evidence}
+            for f in document_level_flags
+        ]
+
+        document_dict = {
+            "filename": doc.filename, "document_type": doc.document_type, "counterparty": doc.counterparty,
+            "business_unit": doc.business_unit, "geography": doc.geography,
+            "confidentiality_level": doc.confidentiality_level, "parties": doc.parties,
+            "subject_matter": doc.subject_matter, "effective_date": doc.effective_date,
+            "end_date": doc.end_date, "monetary_value": doc.monetary_value,
+            "governing_law_country": doc.governing_law_country, "org_profile_id": doc.org_profile_id,
+        }
+
+    latest_summary_version = get_latest_summary_version(document_id)
+    review_actions = get_review_actions_for_document(document_id)
+
+    present_clause_types = [c["clause_type"] for c in clause_payload if c["clause_type"]]
+    missing_clauses = detect_missing_clauses(document_dict["document_type"], present_clause_types,
+                                              document_dict["org_profile_id"])
+
+    from ..db.repository import get_org_profile_customer_id
+    customer_id = get_org_profile_customer_id(document_dict["org_profile_id"])
+
+    standards_comparison = []
+    for clause_type in {c["clause_type"] for c in clause_payload if c["clause_type"]}:
+        try:
+            resolved = resolve_standards(clause_type, document_dict["document_type"],
+                                          org_profile_id=document_dict["org_profile_id"],
+                                          business_unit_id=None, jurisdiction_id=None, customer_id=customer_id)
+        except Exception:  # noqa: BLE001
+            resolved = None
+        if resolved:
+            standards_comparison.append({"clause_type": clause_type, "standard": resolved})
+
+    return {
+        "document": document_dict, "clauses": clause_payload, "document_risk_flags": document_risk_flags,
+        "latest_summary_version": latest_summary_version, "review_actions": review_actions,
+        "missing_clauses": missing_clauses, "standards_comparison": standards_comparison,
+    }
+
+
+def get_review_actions_for_document(document_id: str) -> list[dict]:
+    from ..db.session import get_session
+    from ..db.models import ReviewAction
+    from sqlalchemy import select
+
+    with get_session() as session:
+        rows = session.execute(
+            select(ReviewAction).where(ReviewAction.document_id == document_id).order_by(ReviewAction.timestamp.asc())
+        ).scalars().all()
+        return [
+            {"reviewer_username": r.reviewer_username, "role": r.role, "action": r.action,
+             "rationale": r.rationale, "timestamp": r.timestamp.isoformat()}
+            for r in rows
+        ]
+
+
+@app.post("/api/documents/{document_id}/decision-brief", dependencies=[Depends(require_session)])
+async def generate_decision_brief_endpoint(document_id: str, reviewer: dict = Depends(get_current_reviewer)) -> dict:
+    """Section 15.2: 'Complete Review & Generate Decision Brief'. Gathers all
+    required data, generates the structured brief via Gemini, validates
+    evidence, resolves the approval chain, and stores a versioned brief."""
+    from ..db.repository import create_decision_brief, get_risk_threshold_overrides, write_audit_log
+    from ..graphrag.decision_brief import generate_decision_brief_sections, resolve_approval_chain
+
+    context = _gather_decision_brief_context(document_id)
+    if not context["review_actions"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Review is not complete: no reviewer decisions have been recorded for this document yet.",
+        )
+
+    result = generate_decision_brief_sections(
+        context["document"], context["clauses"], context["document_risk_flags"],
+        context["latest_summary_version"], context["review_actions"],
+        context["missing_clauses"], context["standards_comparison"],
+    )
+
+    clause_risk_flags = [f for c in context["clauses"] for f in (c.get("risk_flags") or [])]
+    risk_threshold_overrides = get_risk_threshold_overrides(context["document"]["org_profile_id"])
+    approval_chain = resolve_approval_chain(
+        context["document"], context["document_risk_flags"], clause_risk_flags, risk_threshold_overrides,
+    )
+
+    brief = create_decision_brief(
+        document_id=document_id, generated_by=reviewer["username"], sections=result["sections"],
+        recommendation=result["recommendation"], evidence_validated=result["evidence_validated"],
+        unsupported_statements=result["unsupported_statements"], approval_chain=approval_chain,
+    )
+
+    write_audit_log(
+        stage="decision_brief", actor=reviewer["username"], action="brief_generated",
+        details={"version_number": brief["version_number"], "recommendation": brief["recommendation"]},
+        document_id=document_id,
+    )
+    return _jsonable(brief)
+
+
+@app.get("/api/documents/{document_id}/decision-brief", dependencies=[Depends(require_session)])
+async def get_decision_brief_history_endpoint(document_id: str) -> dict:
+    from ..db.repository import get_decision_brief_history
+    return _jsonable({"briefs": get_decision_brief_history(document_id)})
+
+
+class ApprovalDecisionRequest(BaseModel):
+    decision: str = Field(..., description="approve/approve_with_changes/reject/send_back")
+    comments: str | None = None
+    required_changes: str | None = None
+    send_back_reason: str | None = None
+
+
+_VALID_APPROVAL_DECISIONS = ("approve", "approve_with_changes", "reject", "send_back")
+
+
+@app.post("/api/decision-briefs/{decision_brief_id}/approval-steps/{approval_step_id}/decide",
+          dependencies=[Depends(require_session)])
+async def decide_approval_step_endpoint(decision_brief_id: str, approval_step_id: str,
+                                         body: ApprovalDecisionRequest,
+                                         reviewer: dict = Depends(get_current_reviewer)) -> dict:
+    """Section 15.4: approve/approve with changes/reject/send back. Only the
+    current assigned approver (the first pending step, by seniority-aware role
+    match) or an admin override may decide."""
+    from ..db.repository import get_decision_brief, get_next_pending_approval_step, decide_approval_step, write_audit_log
+    from .security import can_act_on_assigned_role
+
+    if body.decision not in _VALID_APPROVAL_DECISIONS:
+        raise HTTPException(status_code=400, detail=f"decision must be one of {_VALID_APPROVAL_DECISIONS}")
+    if body.decision == "reject" and not body.comments:
+        raise HTTPException(status_code=400, detail="comments are required to reject.")
+    if body.decision == "approve_with_changes" and not body.required_changes:
+        raise HTTPException(status_code=400, detail="required_changes is required for approve with changes.")
+    if body.decision == "send_back" and not body.send_back_reason:
+        raise HTTPException(status_code=400, detail="send_back_reason is required to send back.")
+
+    brief = get_decision_brief(decision_brief_id)
+    if brief is None:
+        raise HTTPException(status_code=404, detail=f"No decision brief found for decision_brief_id={decision_brief_id}")
+
+    next_step = get_next_pending_approval_step(decision_brief_id)
+    if next_step is None or next_step["approval_step_id"] != approval_step_id:
+        raise HTTPException(
+            status_code=409,
+            detail="This is not the current pending approval step for this brief.",
+        )
+    if not can_act_on_assigned_role(reviewer["role"], next_step["required_role"]):
+        raise HTTPException(
+            status_code=403,
+            detail=f"This approval step is routed to {next_step['required_role']}; your role "
+                   f"({reviewer['role']}) isn't senior enough to act on it.",
+        )
+
+    try:
+        step = decide_approval_step(
+            approval_step_id, decided_by=reviewer["username"], decision=body.decision,
+            comments=body.comments, required_changes=body.required_changes,
+            send_back_reason=body.send_back_reason,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+    write_audit_log(
+        stage="decision_brief", actor=reviewer["username"], action=f"approval_step_{body.decision}",
+        details={"decision_brief_id": decision_brief_id, "approval_step_id": approval_step_id,
+                 "required_role": next_step["required_role"]},
+        document_id=brief["document_id"],
+    )
+    return _jsonable(step)
 
 
 @app.post("/api/documents/{document_id}/confidentiality", dependencies=[Depends(require_session)])

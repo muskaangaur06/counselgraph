@@ -136,11 +136,22 @@ class Document(Base):
     # stores can be joined without duplicating clause/graph data into Postgres
     job_id: Mapped[str] = mapped_column(String(36), nullable=True)
     contract_id: Mapped[str] = mapped_column(String(36), nullable=True)
+    # contract metadata (from contract_metadata.extract_contract_metadata()), persisted
+    # here so it survives past the ingestion job response -- previously only lived in
+    # transient IngestionState/document_context, unavailable to anything reading the
+    # document later (Decision Brief's key dates/financial terms need this, section 15.3)
+    parties: Mapped[list] = mapped_column(JSON, nullable=True)  # [{"name","role"}, ...]
+    subject_matter: Mapped[str] = mapped_column(Text, nullable=True)
+    effective_date: Mapped[str] = mapped_column(String(20), nullable=True)  # ISO 8601 date
+    end_date: Mapped[str] = mapped_column(String(20), nullable=True)  # ISO 8601 date
+    monetary_value: Mapped[float] = mapped_column(Float, nullable=True)
+    governing_law_country: Mapped[str] = mapped_column(String(10), nullable=True)
 
     org_profile: Mapped["OrgProfile"] = relationship(back_populates="documents")
     clauses: Mapped[list["Clause"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     summary_versions: Mapped[list["SummaryVersion"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     confidentiality_overrides: Mapped[list["ConfidentialityOverride"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+    decision_briefs: Mapped[list["DecisionBrief"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 
 class Clause(Base):
@@ -308,3 +319,54 @@ class KnowledgeReference(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     org_profile: Mapped["OrgProfile"] = relationship(back_populates="knowledge_references")
+
+
+class DecisionBrief(Base):
+    """Section 15.2/15.3: a versioned, structured brief generated when the first
+    reviewer completes review. Append-only like SummaryVersion -- a send-back
+    starts a new review cycle and a new brief version, never overwrites a prior
+    one (section 15.4: correction requires a new event/version, not deletion).
+    The 13 required sections (15.3) are stored as one JSON payload rather than
+    13 separate columns, since they're generated and displayed together and
+    nothing queries into an individual section."""
+    __tablename__ = "decision_brief"
+
+    decision_brief_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("document.document_id"), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    generated_by: Mapped[str] = mapped_column(String(100), nullable=False)  # first reviewer who completed review
+    sections: Mapped[dict] = mapped_column(JSON, nullable=False)  # the 13 sections from 15.3
+    recommendation: Mapped[str] = mapped_column(String(30), nullable=False)  # approve/approve_with_changes/reject/escalate
+    evidence_validated: Mapped[bool] = mapped_column(Boolean, default=False)  # 15.2.4: every material statement checked against structured data
+    unsupported_statements: Mapped[list] = mapped_column(JSON, nullable=True)  # statements evidence-validation couldn't ground, surfaced not silently dropped
+    status: Mapped[str] = mapped_column(String(30), default="pending")  # pending/approved/approved_with_changes/rejected/sent_back
+    superseded_by_version: Mapped[int] = mapped_column(Integer, nullable=True)  # set once a send-back produces a newer version
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    document: Mapped["Document"] = relationship(back_populates="decision_briefs")
+    approval_steps: Mapped[list["ApprovalStep"]] = relationship(back_populates="decision_brief", cascade="all, delete-orphan")
+
+
+class ApprovalStep(Base):
+    """One step in a DecisionBrief's approval chain (section 15.5). The chain is
+    resolved once at brief-generation time and persisted as an ordered list of
+    steps so 'next approver can decide without re-entering document data' (Phase
+    8 exit criteria) -- nothing needs to re-resolve the policy on every page load.
+    Each step's decision is an immutable audit event (section 15.4): once decided,
+    a step is never edited, only read."""
+    __tablename__ = "approval_step"
+
+    approval_step_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    decision_brief_id: Mapped[str] = mapped_column(String(36), ForeignKey("decision_brief.decision_brief_id"), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)  # 0-based position in the chain
+    required_role: Mapped[str] = mapped_column(String(50), nullable=False)  # reviewer/senior_counsel/business_head/clo/admin
+    reason: Mapped[str] = mapped_column(String(200), nullable=True)  # why this step exists, e.g. "high risk severity"
+    status: Mapped[str] = mapped_column(String(30), default="pending")  # pending/approved/approved_with_changes/rejected/sent_back/skipped
+    decided_by: Mapped[str] = mapped_column(String(100), nullable=True)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    comments: Mapped[str] = mapped_column(Text, nullable=True)  # required for reject
+    required_changes: Mapped[str] = mapped_column(Text, nullable=True)  # required for approve_with_changes
+    send_back_reason: Mapped[str] = mapped_column(Text, nullable=True)  # required for send_back
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    decision_brief: Mapped["DecisionBrief"] = relationship(back_populates="approval_steps")

@@ -79,6 +79,25 @@ def start_job_node(state: IngestionState) -> dict:
             store.link_party_with_role(contract_id, party["name"], party.get("role"))
     store.set_contract_subject_matter(contract_id, document_context.get("subject_matter"))
 
+    # Persist contract metadata onto Document -- previously this only lived in
+    # the transient document_context returned from this job, unavailable to
+    # anything reading the document after the job response was gone (e.g. the
+    # Decision Brief generator needs key dates/financial terms/parties later).
+    if state.get("document_id"):
+        try:
+            from ..db.repository import update_document
+            update_document(
+                state["document_id"],
+                parties=document_context.get("parties") or [],
+                subject_matter=document_context.get("subject_matter"),
+                effective_date=document_context.get("effective_date"),
+                end_date=document_context.get("end_date"),
+                monetary_value=document_context.get("monetary_value"),
+                governing_law_country=document_context.get("governing_law_country"),
+            )
+        except Exception as e:  # noqa: BLE001
+            print(f"[start_job] WARNING: persisting contract metadata failed: {type(e).__name__}: {e}")
+
     store.write_audit_record(job_id, "system", "job_started", f"document={state['document_name']}")
 
     # Generate the reviewer-facing executive summary once, here, during ingestion

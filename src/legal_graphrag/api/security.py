@@ -37,14 +37,17 @@ _serializer = URLSafeTimedSerializer(_SESSION_SECRET, salt="lg-session")
 RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "30"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 
-VALID_ROLES = ("admin", "reviewer", "senior_counsel")
+VALID_ROLES = ("admin", "reviewer", "senior_counsel", "business_head", "clo")
 
 # Risk-based routing (langgraph_agent.py's _resolve_assigned_role) assigns
 # high-severity/low-confidence risk flags to senior_counsel instead of the
 # default reviewer role. This is the seniority a role needs to act on a flag
 # assigned to a given role -- admin can always act on anything, senior_counsel
 # can act on its own queue and the reviewer queue, reviewer only its own.
-_ROLE_SENIORITY = {"reviewer": 0, "senior_counsel": 1, "admin": 2}
+# business_head/clo (section 15.5's approval-chain fallback roles) sit above
+# senior_counsel: a CLO-routed approval step is the most senior escalation the
+# blueprint defines, business_head next, so admin still outranks both.
+_ROLE_SENIORITY = {"reviewer": 0, "senior_counsel": 1, "business_head": 2, "clo": 3, "admin": 4}
 
 
 def can_act_on_assigned_role(actor_role: str, assigned_role: str) -> bool:
