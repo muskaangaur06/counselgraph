@@ -3,7 +3,7 @@
 ## Repository
 - Path: D:\LegalAssistant
 - Branch: main
-- Latest commit: 3824db8 (Add summary version editing), 15 commits ahead of origin/main, not pushed to GitHub yet.
+- Latest commit: 315fce2 (Show question in chat), 17 commits ahead of origin/main, not pushed to GitHub yet.
 - Working tree: clean
 - Last updated: 2026-08-12
 
