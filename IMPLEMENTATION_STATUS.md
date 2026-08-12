@@ -3,7 +3,7 @@
 ## Repository
 - Path: D:\LegalAssistant
 - Branch: main
-- Latest commit: pending (Phase 6, this session), 12 commits ahead of origin/main before this phase, not pushed to GitHub yet.
+- Latest commit: 3938c82 (Add risk category classification), 13 commits ahead of origin/main, not pushed to GitHub yet.
 - Working tree: clean
 - Last updated: 2026-08-12
 
@@ -135,7 +135,7 @@
 | 3 | Complete | 2aa6539 (bundled with UI redesign commits) | 31 passed (unaffected, frontend-only change); verified with 3 scripted Playwright runs against the live container | URL/localStorage document persistence, universal document header, read-only metadata fields, stale-result cleanup on document switch. See Phase 3 Decisions above. |
 | 4 | Complete | 3c9edb6 | 50 passed total (31 prior + 19 new); 3 pre-existing rate-limiter flakes confirmed unrelated; verified live via Playwright against the rebuilt Docker container | Hybrid deterministic+Gemini confidentiality classifier, override + audit trail, access control by level, UI badge/history, collection_name persistence fix. See Phase 4 Decisions above. |
 | 5 | Complete | f63d40a | 67 passed total (50 prior + 17 new); shared rate-limiter flakes reproduce only across TestClient files run together, confirmed pre-existing; verified live via Playwright against the rebuilt Docker container (TCS vs. Tata Steel resolving different liability standards) | Deterministic 8-level standards resolution hierarchy, conflict/mandatory/prohibited rules, tenant-isolated retrieval, TCS/Tata Steel/Tata Motors demo standards, Standards Lookup UI. Two document_type wildcard/leak bugs found and fixed during live verification. See Phase 5 Decisions above. |
-| 6 | Complete | pending (this phase not yet committed) | 90 passed total (69 prior + 21 new); same pre-existing rate-limiter flakes across TestClient files, confirmed unrelated; verified live via Playwright (excessive_liability/conflicting_terms/missing_clause/compliance_gap all rendering with category badges + standards evidence) | Risk flags now categorized (section 13.4's 12 categories) with document/standards evidence; missing_clause/conflicting_terms/compliance_gap/duplicate_clause/auto_renewal/value_threshold/unusual_governing_law/prohibited_language are now real reviewer-visible RiskFlag rows, not Neo4j-only. RiskFlag.clause_id made nullable (live-Postgres migration). Two design bugs (clause_id/document_id both set; mandatory-scan missing absent-clause_type case) caught and fixed. See Phase 6 Decisions above. |
+| 6 | Complete | 3938c82 | 90 passed total (69 prior + 21 new); same pre-existing rate-limiter flakes across TestClient files, confirmed unrelated; verified live via Playwright (excessive_liability/conflicting_terms/missing_clause/compliance_gap all rendering with category badges + standards evidence) | Risk flags now categorized (section 13.4's 12 categories) with document/standards evidence; missing_clause/conflicting_terms/compliance_gap/duplicate_clause/auto_renewal/value_threshold/unusual_governing_law/prohibited_language are now real reviewer-visible RiskFlag rows, not Neo4j-only. RiskFlag.clause_id made nullable (live-Postgres migration). Two design bugs (clause_id/document_id both set; mandatory-scan missing absent-clause_type case) caught and fixed. See Phase 6 Decisions above. |
 
 ## Committed Changes (pre-existing at session start, reviewed then committed)
 Reviewed via `git diff`, not discarded, committed as ab1ae7e "Fix document context threading":
@@ -240,7 +240,7 @@ New in Phase 6: risk_flag.document_id/category/standards_evidence/applicable_rul
 3. Confidentiality access control (Phase 4) only gates GET /api/documents/{id} -- other routes that surface clause/risk-flag content (e.g. portfolio conflicts) aren't individually gated yet.
 4. asymmetric_rights and non_standard risk categories rely entirely on the LLM prompt (extraction.py's flag_risks) with no deterministic backstop -- revisit if false negatives on these two categories turn out to matter in practice (same reasoning excessive_liability got one).
 5. No BusinessUnit rows are seeded anywhere (schema-only since Phase 1) -- the business_unit-level hierarchy tiers are implemented and unit-tested but have never resolved a real request. Seed real BusinessUnit rows (or demo ones) whenever a phase needs to exercise that level for real.
-6. Not yet pushed to GitHub (`https://github.com/muskaangaur06/counselgraph`) -- 13 commits ahead of origin/main after this phase. Push only if/when explicitly asked.
+6. Not yet pushed to GitHub (`https://github.com/muskaangaur06/counselgraph`) -- 14 commits ahead of origin/main after this phase. Push only if/when explicitly asked.
 
 ## Handoff Notes (read this first in a new session)
 - Phases 0-6 of MASTER_BLUEPRINT.md are done. Between Phase 3 and Phase 4 there was also a large out-of-phase UI visual redesign requested directly by the user (not in the blueprint) -- see "Out-of-Phase: UI Redesign" section above for what changed and why. `MASTER_BLUEPRINT.md` is the original directive, unmodified; this file is the live status tracker.
