@@ -3,8 +3,8 @@
 ## Repository
 - Path: D:\LegalAssistant
 - Branch: main
-- Latest commit: e38dcdd (Add document header persistence), 5 commits ahead of origin/main, not pushed. Out-of-phase UI redesign work (below) not committed yet.
-- Working tree: modified, see UI Redesign section below
+- Latest commit: 2aa6539 (Redesign UI with maroon theme), 7 commits ahead of origin/main, not pushed to GitHub yet.
+- Working tree: clean
 - Last updated: 2026-08-12
 
 ## Environment
@@ -34,8 +34,8 @@
 | Summary versioning backend | Present | SummaryVersion model, add_summary_version, GET/POST /api/documents/{id}/summary | No frontend editor yet (blueprint section 14.1 gap) |
 | Fixed reviewer roster auth | Present | security.py: REVIEWERS json or REVIEWER_N_* env vars, roles admin/reviewer/senior_counsel | No self-signup, matches blueprint 3.7 |
 | Audit log | Present | AuditLog model, append-only, GET /api/audit/{job_id} | |
-| Ask/Q&A (single-shot, not multi-turn) | Present but NOT multi-turn chat | index.html handleAskResponse / askThreadId flow | Requires manually-entered `askCollection` (auto-filled by shared doc context, but not read-only). No conversational memory across questions -- blueprint's "in-progress chat conversion" has NOT landed; this is still single-question-per-thread. |
-| Shared document context (frontend) | Present | index.html `currentDocument` global object + setCurrentDocument(), auto-fills askCollection/auditJobId/documentDetailId | Auto-fill confirmed real. Fields are pre-filled but still editable text inputs, not read-only metadata (blueprint 17.2 gap). |
+| Ask/Q&A (single-shot, not multi-turn) | Present but NOT multi-turn chat | index.html handleAskResponse / askThreadId flow, now a floating chat-style widget (#chatLauncher/#chatPanel) | collectionName now derived automatically (deriveCollectionNameFromFilename fallback) instead of requiring manual entry -- no visible collection input at all anymore. Still no conversational memory across questions -- blueprint's "in-progress chat conversion" has NOT landed; this is still single-question-per-thread, just with a chat-shaped UI. |
+| Shared document context (frontend) | Present, read-only | index.html `currentDocument` global object, persisted via ?document=<id> URL + localStorage, universal #docHeader shown on all tabs except Upload | askCollection/auditJobId/documentDetailId are genuinely read-only (not just prefilled) once a document is selected; blueprint 17.1/17.2 gaps closed in Phase 3. |
 | Eval matrix / dashboard panel | Present, cache-based | GET /api/eval/summary (reads cache), POST /api/eval/refresh (live Gemini eval, writes cache) | Only 3 metrics (clause_recall, risk_precision, missing_clause_detection_correct), not the full metric suite in blueprint sections 21-28 |
 | Confidentiality classification | Manual only | Document.confidentiality_level field exists, set via org_profile.confidentiality_default | No automatic hybrid classifier (deterministic + Gemini), no override audit trail -- blueprint section 12 is genuinely missing |
 | Multi-tenancy (customer/org/BU) | Partial (Phase 1 done) | tests/test_tenancy_migration.py, verified against live Postgres | Customer/Jurisdiction/BusinessUnit tables added, org_profile.customer_id backfilled to Tata Group. No DocumentType table yet. Query-layer tenant scoping/isolation not wired in (single customer today, nothing to isolate against yet) -- deferred to Phase 4+. |
@@ -187,9 +187,20 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 - [ ] Podman migration for deployment target (user-requested deviation from Docker-only wording)
 
 ## Next Exact Actions
-1. Commit Phase 3 (document header, URL/localStorage persistence, read-only fields, stale-result cleanup) as a clean phase commit, pending user confirmation to commit.
-2. Begin Phase 4 (Automatic confidentiality): add the classification migration/fields, hybrid deterministic+Gemini classifier, human override + audit trail, UI badge/history.
-3. User-to-organization assignment is still an open gap (reviewer roster has roles but no org scope) -- revisit when Phase 5 (tenant-filtered RAG) needs real cross-org isolation to test against, since there's still only one customer/no real cross-org scenario to enforce today.
+1. Begin Phase 4 (Automatic confidentiality): add the classification migration/fields, hybrid deterministic+Gemini classifier, human override + audit trail, UI badge/history. This is the next blueprint phase per MASTER_BLUEPRINT.md section 33 -- Phases 0-3 are done, the UI redesign since then was an out-of-phase user request (see that section above), not a blueprint phase.
+2. User-to-organization assignment is still an open gap (reviewer roster has roles but no org scope) -- revisit when Phase 5 (tenant-filtered RAG) needs real cross-org isolation to test against, since there's still only one customer/no real cross-org scenario to enforce today.
+3. Known gap from the UI redesign: `collection_name` isn't persisted on `Document` (see "Known Gap" section above) -- worth fixing with a small migration before Phase 4's confidentiality work touches Document again, so it's one migration instead of two.
+4. Not yet pushed to GitHub (`https://github.com/muskaangaur06/counselgraph`) -- 7 commits ahead of origin/main. Push only if/when explicitly asked.
+
+## Handoff Notes (read this first in a new session)
+- This session did Phases 0-3 of MASTER_BLUEPRINT.md, then a large out-of-phase UI visual redesign requested directly by the user (not in the blueprint) -- see "Out-of-Phase: UI Redesign" section above for what changed and why. `MASTER_BLUEPRINT.md` is the original directive, unmodified; this file is the live status tracker.
+- **Podman decision**: user asked to use Podman instead of Docker for the eventual deployment target (to reduce RAM overhead vs. Docker Desktop). This has NOT been implemented yet -- still on plain `docker compose` throughout Phases 0-3 and the UI redesign. Revisit at Phase 12 (Docker/Podman production readiness) per the blueprint's own phase ordering; don't switch earlier than that without a reason, since Podman Compose vs. `docker-compose.yml` compatibility hasn't been verified at all.
+- **Host is memory-constrained** (~13.6GB total, observed as low as ~1.8GB free during dependency installs). `pip install` needs `--no-cache-dir` to avoid a `MemoryError` during wheel-hash verification (already documented, not a persistent blocker). Loading the sentence-transformer embedder directly in a pytest process (not via Docker) can hit a Windows "paging file too small" OSError -- work around it by mocking `preload_models` in tests that don't need embeddings, rather than trying to fix the OS page file.
+- **Dev login for manual/Playwright testing**: username `admin`, password `admin@321` (the documented insecure fallback default in security.py, used when no `.env` REVIEWERS/ADMIN_* vars override it -- not a real secret, safe to reuse in tests).
+- **How UI changes were verified this session**: no frontend test framework exists. Verification was done by rebuilding the Docker image (`docker compose build api && docker compose up -d api`), waiting for `/health` to return `{"status":"ok"}` (can take 1-3 min for model preload on this host), then driving it with a throwaway Playwright script (`npm init -y && npm install --no-save playwright` in the scratchpad dir, `chromium.launch()`, screenshot, read the screenshot with the Read tool). Always clean up the throwaway npm/playwright directory afterward. There is no persistent Playwright setup in the repo.
+- **Current visual direction** (if continuing UI work): dark theme = near-black background with maroon/crimson glow + gold secondary accent; light theme = warm buttery cream/gold with bold maroon accent. This was a deliberate, fresh design (not a revival of the original muted brown/maroon courthouse look) requested by the user after two earlier iterations (blue/purple, then a more "SaaS clean" pass) were both rejected. If the user asks for further visual changes, get specific direction before rebuilding broad swaths of CSS again -- this took 3 full rebuild-and-screenshot cycles to converge.
+- All plain-English copy from the original courthouse theme (Exhibit A, Docket Entry, "Register of Legal Documents") was deliberately removed and replaced with plain labels (Upload, Review, Submission, etc.) -- don't reintroduce it without the user asking.
+- The floating chat widget (bottom-right, `#chatLauncher`/`#chatPanel`) reuses the existing single-shot `/api/query/jobs` ask/resume flow -- it is NOT multi-turn conversational memory. That's still blueprint section 17.5's open gap. Don't confuse "has a chat-style UI" with "has chat memory" when picking up Phase 9.
 
 ## Commands That Last Passed
 ```bash
