@@ -3,7 +3,7 @@
 ## Repository
 - Path: D:\LegalAssistant
 - Branch: main
-- Latest commit: 2aa6539 (Redesign UI with maroon theme), 7 commits ahead of origin/main, not pushed to GitHub yet.
+- Latest commit: 3c9edb6 (Add confidentiality classification), 9 commits ahead of origin/main, not pushed to GitHub yet.
 - Working tree: clean
 - Last updated: 2026-08-12
 
@@ -110,7 +110,7 @@
 | 1 | Complete | 7f39083 | 24 passed (19 pre-existing + 5 new tenancy tests), verified against live Postgres too | Customer/Jurisdiction/BusinessUnit tables added, org_profile backfilled. See Phase 1 Decisions above. |
 | 2 | Complete | 3ff2821 | 31 passed (24 pre-existing + 7 new authorization tests); verified against live Docker container (rebuild + health check + /docs 200 + Playwright login/dropdown/logout screenshots) | Swagger env-gated, profile dropdown, senior_counsel routing enforced. See Phase 2 Decisions above. |
 | 3 | Complete | 2aa6539 (bundled with UI redesign commits) | 31 passed (unaffected, frontend-only change); verified with 3 scripted Playwright runs against the live container | URL/localStorage document persistence, universal document header, read-only metadata fields, stale-result cleanup on document switch. See Phase 3 Decisions above. |
-| 4 | Complete | pending (this phase not yet committed) | 50 passed total (31 prior + 19 new); 3 pre-existing rate-limiter flakes confirmed unrelated | Hybrid deterministic+Gemini confidentiality classifier, override + audit trail, access control by level, UI badge/history, collection_name persistence fix. See Phase 4 Decisions above. |
+| 4 | Complete | 3c9edb6 | 50 passed total (31 prior + 19 new); 3 pre-existing rate-limiter flakes confirmed unrelated; verified live via Playwright against the rebuilt Docker container | Hybrid deterministic+Gemini confidentiality classifier, override + audit trail, access control by level, UI badge/history, collection_name persistence fix. See Phase 4 Decisions above. |
 
 ## Committed Changes (pre-existing at session start, reviewed then committed)
 Reviewed via `git diff`, not discarded, committed as ab1ae7e "Fix document context threading":
@@ -207,7 +207,7 @@ New in Phase 4: document.collection_name, document.confidentiality_confidence/so
 1. Begin Phase 5 (Standards hierarchy and tenant-filtered RAG): this is the next blueprint phase per MASTER_BLUEPRINT.md section 33 -- Phases 0-4 are now done.
 2. User-to-organization assignment is still an open gap (reviewer roster has roles but no org scope) -- revisit when Phase 5's tenant-filtered RAG needs real cross-org isolation to test against, since there's still only one customer/no real cross-org scenario to enforce today. This also limits Phase 4's access control to role-based only (no "explicitly assigned users" list per section 12.4's example policy).
 3. Confidentiality access control (Phase 4) only gates GET /api/documents/{id} -- other routes that surface clause/risk-flag content (e.g. portfolio conflicts) aren't individually gated yet. Revisit alongside Phase 5's tenant-filtered RAG work.
-4. Not yet pushed to GitHub (`https://github.com/muskaangaur06/counselgraph`) -- 8 commits ahead of origin/main after this phase. Push only if/when explicitly asked.
+4. Not yet pushed to GitHub (`https://github.com/muskaangaur06/counselgraph`) -- 9 commits ahead of origin/main after this phase. Push only if/when explicitly asked.
 
 ## Handoff Notes (read this first in a new session)
 - Phases 0-4 of MASTER_BLUEPRINT.md are done. Between Phase 3 and Phase 4 there was also a large out-of-phase UI visual redesign requested directly by the user (not in the blueprint) -- see "Out-of-Phase: UI Redesign" section above for what changed and why. `MASTER_BLUEPRINT.md` is the original directive, unmodified; this file is the live status tracker.
