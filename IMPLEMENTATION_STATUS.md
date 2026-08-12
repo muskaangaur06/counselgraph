@@ -3,8 +3,8 @@
 ## Repository
 - Path: D:\LegalAssistant
 - Branch: main
-- Latest commit: 843798c (initial commit)
-- Working tree: 3 files modified, not yet committed (see "Uncommitted Changes" below)
+- Latest commit: eefe70a (Add project control files), 2 commits ahead of origin/main, not pushed
+- Working tree: clean
 - Last updated: 2026-08-12
 
 ## Environment
@@ -38,7 +38,7 @@
 | Shared document context (frontend) | Present | index.html `currentDocument` global object + setCurrentDocument(), auto-fills askCollection/auditJobId/documentDetailId | Auto-fill confirmed real. Fields are pre-filled but still editable text inputs, not read-only metadata (blueprint 17.2 gap). |
 | Eval matrix / dashboard panel | Present, cache-based | GET /api/eval/summary (reads cache), POST /api/eval/refresh (live Gemini eval, writes cache) | Only 3 metrics (clause_recall, risk_precision, missing_clause_detection_correct), not the full metric suite in blueprint sections 21-28 |
 | Confidentiality classification | Manual only | Document.confidentiality_level field exists, set via org_profile.confidentiality_default | No automatic hybrid classifier (deterministic + Gemini), no override audit trail -- blueprint section 12 is genuinely missing |
-| Multi-tenancy (customer/org/BU) | Missing | No Customer, BusinessUnit, Jurisdiction, DocumentType tables. OrgProfile is a flat single-level config, not a Tata-Group-scoped hierarchy. | Blueprint section 9 largely greenfield within this repo |
+| Multi-tenancy (customer/org/BU) | Partial (Phase 1 done) | tests/test_tenancy_migration.py, verified against live Postgres | Customer/Jurisdiction/BusinessUnit tables added, org_profile.customer_id backfilled to Tata Group. No DocumentType table yet. Query-layer tenant scoping/isolation not wired in (single customer today, nothing to isolate against yet) -- deferred to Phase 4+. |
 | Decision Brief + approval chain | Missing | No DecisionBrief or ApprovalChain models/routes | Blueprint section 15 genuinely missing |
 | Standards resolution hierarchy | Partial | KnowledgeReference has business_unit_scope/jurisdiction_scope/approval_status fields, but no deterministic resolution service implementing the 8-level precedence in blueprint 11.1 | |
 | Swagger/OpenAPI in production | Not gated | FastAPI() call has no docs_url/redoc_url/openapi_url environment guard | Blueprint section 6.1 gap, real and unconditional |
@@ -47,24 +47,33 @@
 | API healthcheck | Missing | docker-compose.yml has healthchecks for postgres/neo4j/minio but not for `api` service | Blueprint 32.2 gap |
 
 ## Current Phase
-- Phase: 0 (Repository recovery and baseline) -- COMPLETE, moving to Phase 1 planning
-- Objective: Verify existing baseline before any feature work, per master directive section 33
-- Files being changed: none yet (MASTER_BLUEPRINT.md, IMPLEMENTATION_STATUS.md, .venv created this session)
-- Focused tests: full existing pytest suite run as baseline (see Phase History)
-- Blockers: none blocking; Neo4j hostname resolution from host is a config note, not a blocker (containers work fine internally)
+- Phase: 1 (Architecture and migration audit) -- COMPLETE
+- Objective: Add Customer/Organization/BusinessUnit/Jurisdiction tenancy model without breaking any of the 15+ existing call sites keyed on org_profile_id
+- Files changed: src/legal_graphrag/db/models.py (Customer, Jurisdiction, BusinessUnit models; customer_id/industry_sector/default_risk_tolerance/is_active added to OrgProfile), src/legal_graphrag/db/session.py (idempotent _add_missing_columns() column retrofit, seed_defaults()), src/legal_graphrag/api/main.py (calls seed_defaults() in lifespan), tests/test_tenancy_migration.py (new, 5 tests)
+- Focused tests: tests/test_tenancy_migration.py (5 passed); full fast suite (24 passed, tests/eval and test_integration_ingestion.py excluded -- both require live GEMINI_API_KEY/reachable Neo4j from host, pre-existing environment gap not caused by this phase)
+- Blockers: none
+
+## Phase 1 Decisions
+- org_profile IS the "Organization" from the blueprint (e.g. "Vendor Procurement Unit" is an Organization under Tata Group), not a new Business Unit layer. Chosen because org_profile_id is referenced by 15+ call sites (extraction.py, deviation.py, playbook.py, repository.py, langgraph_agent.py) -- this mapping required zero changes to any of them.
+- No Alembic. Added a small idempotent column-retrofit helper (_add_missing_columns in session.py) that diffs each model's columns against live table columns via SQLAlchemy inspector and ALTER TABLE ADDs what's missing, with the column's Python-side default carried into the DDL so retrofitted existing rows don't end up NULL (e.g. is_active retrofits to true, not NULL).
+- seed_defaults() is get-or-create by natural unique key (customer.code, jurisdiction.code) and only backfills org_profile rows where customer_id IS NULL, so a profile already assigned to some other customer is never silently reassigned (tested).
+- Did not add customer_id to Document directly. Every document already carries org_profile_id (currently NULL for all 4 existing rows), and customer scope is derivable transitively via org_profile.customer_id. Revisit only if Phase 4/9 tenant-filtered query performance actually needs a direct denormalized index.
+- Did not add a DocumentType table this phase -- not blocking anything in Phase 1's scope, deferred to whichever phase first needs it (likely Phase 4/5).
+- Query-layer tenant isolation (section 10's negative tests: cross-org access denial, vector-retrieval tenant filtering) is NOT implemented yet -- there is exactly one customer and no auth-role-to-org mapping today, so there is nothing to isolate against. Revisit once Phase 2 (auth/access control) and Phase 5 (tenant-filtered RAG) land.
 
 ## Phase History
 | Phase | Status | Commit | Tests | Notes |
 |---|---|---|---|---|
-| 0 | Complete | none yet (uncommitted) | 22 passed, 2 failed / 24 total, 728s | Failures: neo4j DNS resolution from host process, not an app bug. See Environment Constraint below. |
+| 0 | Complete | ab1ae7e, eefe70a | 22 passed, 2 failed / 24 total, 728s | Failures: neo4j DNS resolution from host process, not an app bug. See Environment Constraint below. |
+| 1 | Complete | pending (this phase not yet committed) | 24 passed (19 pre-existing + 5 new tenancy tests), verified against live Postgres too | Customer/Jurisdiction/BusinessUnit tables added, org_profile backfilled. See Phase 1 Decisions above. |
 
-## Uncommitted Changes (pre-existing, found at session start)
-Three files modified, not yet committed. Reviewed via `git diff`, not discarded:
+## Committed Changes (pre-existing at session start, reviewed then committed)
+Reviewed via `git diff`, not discarded, committed as ab1ae7e "Fix document context threading":
 - `src/legal_graphrag/api/main.py`: adds `document_context` merging into job responses (threads document_name/collection_name/document_id through pause+resume), adds executive_summary to document detail response, adds `/api/eval/summary` and `/api/eval/refresh` endpoints reading/writing a JSON eval cache.
 - `src/legal_graphrag/graphrag/langgraph_agent.py`: generates the executive summary once at ingestion time (start_job_node) instead of on-demand, persists via SummaryVersion; threads document_id through apply_decision_node's return.
-- `src/legal_graphrag/api/static/index.html`: 413 insertions / 33 deletions, not yet line-by-line reviewed in detail beyond the `currentDocument` shared-state mechanism confirmed above.
+- `src/legal_graphrag/api/static/index.html`: 413 insertions / 33 deletions, not line-by-line reviewed in detail beyond the `currentDocument` shared-state mechanism confirmed above.
 
-These look like a coherent, intentional bug fix + feature addition (document-context threading + eval dashboard cache), consistent with the directive's description in section 3.1. Not yet committed pending Phase 1 test coverage and explicit user commit approval.
+MASTER_BLUEPRINT.md and IMPLEMENTATION_STATUS.md committed separately as eefe70a "Add project control files". Neither commit pushed to origin yet.
 
 ## Environment Constraint
 - Total physical memory: ~13.6 GB
@@ -77,9 +86,12 @@ These look like a coherent, intentional bug fix + feature addition (document-con
 ## Database and Migration State
 | Migration | Applied | Verified | Notes |
 |---|---|---|---|
-| N/A -- no migration framework | N/A | Tables created via SQLAlchemy `Base.metadata.create_all` (session.py) | No Alembic/versioned migrations found. Phase 1 will need to introduce idempotent migration handling before adding Customer/Organization/BusinessUnit tables. |
+| N/A -- no Alembic | N/A | `Base.metadata.create_all` for new tables (session.py) | Still true for brand-new tables. |
+| Phase 1: add customer/jurisdiction/business_unit tables + org_profile columns | Yes, on live Postgres and SQLite fallback | Yes -- schema inspected via psql, 3 existing org_profile rows preserved with original UUIDs, is_active retrofitted to true (not NULL) | Applied via new `_add_missing_columns()` helper in session.py, runs automatically in `init_db()` on every app startup |
+| Phase 1: seed_defaults() -- Tata Group customer, 7 jurisdictions, org_profile backfill | Yes, on live Postgres and SQLite fallback | Yes -- psql query confirms all 3 org_profile rows joined to TATA_GROUP customer | Idempotent get-or-create, tested for double-run and for not clobbering an already-scoped profile |
 
 Existing tables (all confirmed in src/legal_graphrag/db/models.py): org_profile, document, clause, risk_flag, playbook_entry, review_action, audit_log, summary_version, knowledge_reference.
+New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no rows yet).
 
 ## API State
 | Route | Existing/New | Status | Auth | Test |
@@ -126,7 +138,7 @@ Existing tables (all confirmed in src/legal_graphrag/db/models.py): org_profile,
 | Confidentiality classification metrics | 0 | Not evaluated | -- | Not implemented yet (blueprint section 23) |
 
 ## Known Gaps
-- [ ] Multi-tenancy model (Customer/Organization/BusinessUnit/Jurisdiction/DocumentType) -- section 9
+- [x] Multi-tenancy model -- Customer/Jurisdiction/BusinessUnit added, org_profile backfilled (Phase 1). DocumentType table still missing. Query-layer isolation (RLS/auth-scoping) still missing -- see Phase 1 Decisions.
 - [ ] Automatic hybrid confidentiality classification + override audit -- section 12
 - [ ] Deterministic standards-resolution service (8-level hierarchy) -- section 11
 - [ ] Decision Brief generation + approval chain -- section 15
@@ -139,15 +151,16 @@ Existing tables (all confirmed in src/legal_graphrag/db/models.py): org_profile,
 - [ ] Podman migration for deployment target (user-requested deviation from Docker-only wording)
 
 ## Next Exact Actions
-1. Commit the reviewed, working uncommitted changes (main.py/langgraph_agent.py/index.html document-context fix + eval cache endpoints) as a clean Phase 0 commit, pending user confirmation to commit.
-2. Begin Phase 1 (Architecture and migration audit): design idempotent approach for adding customer_id/organization_id to existing tables without breaking the 3 seeded org_profile rows.
-3. Decide and document the org_profile -> Customer/Organization/BusinessUnit mapping strategy before writing any migration code.
+1. Commit Phase 1 (tenancy models + session.py migration/seed helpers + tests) as a clean phase commit, pending user confirmation to commit.
+2. Begin Phase 2 (Auth, profile, and access control): gate Swagger/docs by environment, centralize permission checks, add negative authorization tests.
+3. Decide whether Phase 2 or Phase 5 is where org-to-user access scoping first gets wired in (currently no user-to-organization mapping exists at all -- the reviewer roster has roles but no org assignment).
 
 ## Commands That Last Passed
 ```bash
 cd D:\LegalAssistant
 .venv/Scripts/python.exe -m pip check   # clean, 175 packages
 .venv/Scripts/python.exe -c "import torch; print(torch.__version__, torch.cuda.is_available())"  # 2.13.0+cpu, False
-.venv/Scripts/python.exe -m pytest -q   # 22 passed, 2 failed (Neo4j hostname resolution from host, not an app bug)
+.venv/Scripts/python.exe -m pytest tests/ -q --ignore=tests/eval --ignore=tests/test_integration_ingestion.py   # 24 passed
+docker compose build api && docker compose up -d api   # rebuilds image with schema changes, seed_defaults() runs on startup
 docker ps -a   # postgres, neo4j, minio, api all healthy/running
 ```

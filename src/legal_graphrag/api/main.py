@@ -79,8 +79,9 @@ async def lifespan(app: FastAPI):
     preload_models(include_neo4j=False)  # Neo4j connected separately below
 
     try:
-        from ..db.session import init_db
+        from ..db.session import init_db, seed_defaults
         init_db()
+        seed_defaults()
         print("Postgres tables ready.")
     except Exception as e:
         print(f"WARNING: could not initialize Postgres tables ({type(e).__name__}: {e}). "

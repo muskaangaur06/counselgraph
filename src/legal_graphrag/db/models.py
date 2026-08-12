@@ -38,19 +38,78 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class Customer(Base):
+    """Top-level tenant boundary. Single row (Tata Group) today; the schema
+    stays SaaS-ready for additional customers without any code path assuming
+    there's only one."""
+    __tablename__ = "customer"
+
+    customer_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    code: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    subscription_tier: Mapped[str] = mapped_column(String(50), default="standard")
+    logo_url: Mapped[str] = mapped_column(String(500), nullable=True)
+    primary_color: Mapped[str] = mapped_column(String(20), nullable=True)
+    app_name: Mapped[str] = mapped_column(String(200), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    org_profiles: Mapped[list["OrgProfile"]] = relationship(back_populates="customer")
+
+
+class Jurisdiction(Base):
+    __tablename__ = "jurisdiction"
+
+    jurisdiction_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    code: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    legal_system: Mapped[str] = mapped_column(String(100), nullable=True)
+    privacy_regime: Mapped[str] = mapped_column(String(200), nullable=True)
+    data_localization_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    compliance_notes: Mapped[str] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class OrgProfile(Base):
+    """Represents a Tata company (the blueprint's "Organization"). Kept as the
+    existing org_profile table/PK so the 15+ existing call sites resolving
+    checklists/risk overrides/knowledge references by org_profile_id keep
+    working unchanged; customer_id and the new descriptive fields are additive."""
     __tablename__ = "org_profile"
 
     profile_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customer.customer_id"), nullable=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    industry_sector: Mapped[str] = mapped_column(String(100), nullable=True)
+    default_risk_tolerance: Mapped[str] = mapped_column(String(50), nullable=True)
     jurisdiction_defaults: Mapped[dict] = mapped_column(JSON, default=dict)
     required_clause_checklist: Mapped[dict] = mapped_column(JSON, default=dict)  # keyed by contract_type
     risk_threshold_overrides: Mapped[dict] = mapped_column(JSON, default=dict)
     confidentiality_default: Mapped[str] = mapped_column(String(50), default="internal")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
+    customer: Mapped["Customer"] = relationship(back_populates="org_profiles")
+    business_units: Mapped[list["BusinessUnit"]] = relationship(back_populates="org_profile")
     documents: Mapped[list["Document"]] = relationship(back_populates="org_profile")
     knowledge_references: Mapped[list["KnowledgeReference"]] = relationship(back_populates="org_profile")
+
+
+class BusinessUnit(Base):
+    """Sub-scope within an OrgProfile/Organization, e.g. "TCS North America".
+    No rows exist yet -- this is schema-only until Phase 5 seeds real data."""
+    __tablename__ = "business_unit"
+
+    business_unit_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customer.customer_id"), nullable=True)
+    org_profile_id: Mapped[str] = mapped_column(String(36), ForeignKey("org_profile.profile_id"), nullable=False)
+    code: Mapped[str] = mapped_column(String(50), nullable=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    geography: Mapped[str] = mapped_column(String(100), nullable=True)
+    industry_vertical: Mapped[str] = mapped_column(String(100), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    org_profile: Mapped["OrgProfile"] = relationship(back_populates="business_units")
 
 
 class Document(Base):

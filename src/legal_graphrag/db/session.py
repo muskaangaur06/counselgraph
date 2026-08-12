@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from typing import Iterator
 
 from sqlalchemy import create_engine
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session, sessionmaker
 
 from .. import config
@@ -60,9 +61,85 @@ def get_session() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    """Creates all tables if they don't already exist. Idempotent, safe to call on every startup."""
+    """Creates all tables if they don't already exist, then adds any columns
+    that were added to an existing model since the table was first created
+    (there's no Alembic here, so create_all alone won't pick those up).
+    Idempotent, safe to call on every startup."""
+    from sqlalchemy import inspect
+
     from .models import Base
-    Base.metadata.create_all(get_engine())
+
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    _add_missing_columns(engine, inspect(engine))
+
+
+def _add_missing_columns(engine, inspector) -> None:
+    from .models import Base
+
+    existing_tables = set(inspector.get_table_names())
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue  # brand-new table, create_all already made it with every column
+            existing_columns = {c["name"] for c in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing_columns:
+                    continue
+                ddl_type = column.type.compile(dialect=engine.dialect)
+                # existing rows get the column's Python-side default (if any) instead of
+                # NULL, so e.g. is_active retrofits to true rather than leaving old rows
+                # looking deactivated
+                default_sql = ""
+                if column.default is not None and column.default.is_scalar:
+                    default_sql = f" DEFAULT {column.default.arg!r}" if isinstance(column.default.arg, str) else f" DEFAULT {column.default.arg}"
+                conn.execute(sa_text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {ddl_type}{default_sql}'))
+
+
+DEFAULT_CUSTOMER_CODE = os.getenv("DEFAULT_CUSTOMER_CODE", "TATA_GROUP")
+DEFAULT_CUSTOMER_NAME = "Tata Group"
+
+_SEED_JURISDICTIONS = [
+    # (code, name, legal_system, privacy_regime, data_localization_required)
+    ("IN", "India", "Common law", "DPDP Act, 2023", True),
+    ("US", "United States", "Common law", "State privacy laws (varies by state)", False),
+    ("UK", "United Kingdom", "Common law", "UK GDPR", False),
+    ("EU", "European Union", "Civil law (varies by member state)", "GDPR", False),
+    ("SG", "Singapore", "Common law", "PDPA", False),
+    ("AE", "United Arab Emirates", "Civil law", "UAE PDPL", False),
+    ("AU", "Australia", "Common law", "Privacy Act 1988", False),
+]
+
+
+def seed_defaults() -> None:
+    """Idempotent seed: one default Customer (Tata Group), the reference
+    jurisdiction list, and a backfill of every existing org_profile row onto
+    that customer. Safe to call on every startup -- everything here is
+    get-or-create by a natural unique key (customer.code, jurisdiction.code),
+    never a blind insert."""
+    from .models import Customer, Jurisdiction, OrgProfile
+
+    with get_session() as session:
+        customer = session.query(Customer).filter_by(code=DEFAULT_CUSTOMER_CODE).one_or_none()
+        if customer is None:
+            customer = Customer(code=DEFAULT_CUSTOMER_CODE, name=DEFAULT_CUSTOMER_NAME)
+            session.add(customer)
+            session.flush()
+
+        for code, name, legal_system, privacy_regime, data_localization in _SEED_JURISDICTIONS:
+            if session.query(Jurisdiction).filter_by(code=code).one_or_none() is not None:
+                continue
+            session.add(Jurisdiction(
+                code=code, name=name, legal_system=legal_system,
+                privacy_regime=privacy_regime, data_localization_required=data_localization,
+            ))
+
+        # backfill: every org_profile with no customer_id yet belongs to the
+        # default customer (there is exactly one customer today; this is a
+        # no-op once every profile has been assigned)
+        unassigned = session.query(OrgProfile).filter(OrgProfile.customer_id.is_(None)).all()
+        for profile in unassigned:
+            profile.customer_id = customer.customer_id
 
 
 def reset_engine_for_tests() -> None:
