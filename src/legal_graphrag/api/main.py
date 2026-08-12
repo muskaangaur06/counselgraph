@@ -275,6 +275,7 @@ async def start_ingestion_job(
         pg_document_id = create_document(
             filename=document_name,
             storage_key=storage_key,
+            collection_name=collection_name or re.sub(r"\W+", "_", document_name),
             document_type=None,
             business_unit=business_unit,
             counterparty=counterparty,
@@ -296,11 +297,13 @@ async def start_ingestion_job(
             pages, raw_tables = extract_page_content(str(saved_path))
         enforce_page_limit(len(pages))
 
+        ocr_ratio = 0.0
         if ext == ".pdf":
             low_text_pages = detect_low_text_pages(pages)
             if low_text_pages:
                 ocr_results = ocr_pages(str(saved_path), low_text_pages)
                 pages = merge_ocr_results(pages, ocr_results)
+            ocr_ratio = len(low_text_pages) / len(pages) if pages else 0.0
 
         page_sections = compute_page_sections(pages)
         text_chunks = chunk_pages(pages, document_name, page_sections)
@@ -327,6 +330,7 @@ async def start_ingestion_job(
                 "text_chunks": graphrag_chunks,
                 "org_profile_id": org_profile_id,
                 "document_id": pg_document_id,
+                "ocr_ratio": ocr_ratio,
             },
             config=config,
         )
@@ -466,9 +470,30 @@ async def list_org_profiles_endpoint() -> dict:
     return _jsonable({"org_profiles": list_org_profiles()})
 
 
+# confidentiality -> access control (section 12.4): which roles may view a
+# document at each level. Adapts the existing admin/senior_counsel/reviewer
+# roles rather than inventing a new permission system -- highly_confidential
+# is senior_counsel/admin only, everything else is any authenticated reviewer.
+_CONFIDENTIALITY_ACCESS_ROLES = {
+    "highly_confidential": ("senior_counsel", "admin"),
+    "confidential": ("reviewer", "senior_counsel", "admin"),
+    "internal": ("reviewer", "senior_counsel", "admin"),
+    "public": ("reviewer", "senior_counsel", "admin"),
+}
+
+
+def _enforce_confidentiality_access(confidentiality_level: str | None, reviewer_role: str) -> None:
+    allowed_roles = _CONFIDENTIALITY_ACCESS_ROLES.get(confidentiality_level or "internal", _CONFIDENTIALITY_ACCESS_ROLES["internal"])
+    if reviewer_role not in allowed_roles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"This document is classified '{confidentiality_level}'; role '{reviewer_role}' is not authorized to view it.",
+        )
+
+
 # document detail: clauses/risk-flags/playbook entries for the Review Workspace screen
 @app.get("/api/documents/{document_id}", dependencies=[Depends(require_session)])
-async def get_document_detail(document_id: str) -> dict:
+async def get_document_detail(document_id: str, reviewer: dict = Depends(get_current_reviewer)) -> dict:
     from ..db.session import get_session
     from ..db.models import Document, Clause, RiskFlag, PlaybookEntry
     from sqlalchemy import select
@@ -477,8 +502,9 @@ async def get_document_detail(document_id: str) -> dict:
         doc = session.get(Document, document_id)
         if doc is None:
             raise HTTPException(status_code=404, detail=f"No document found for document_id={document_id}")
+        _enforce_confidentiality_access(doc.confidentiality_level, reviewer["role"])
 
-        from ..db.repository import get_summary_history
+        from ..db.repository import get_summary_history, get_confidentiality_history
         summary_versions = get_summary_history(document_id)
         executive_summary = summary_versions[0]["summary_text"] if summary_versions else None
 
@@ -510,10 +536,19 @@ async def get_document_detail(document_id: str) -> dict:
                 "version": c.version, "risk_flags": flag_payload,
             })
 
+        override_history = get_confidentiality_history(document_id)
+
         return _jsonable({
             "document_id": doc.document_id, "filename": doc.filename, "document_type": doc.document_type,
+            "collection_name": doc.collection_name,
             "business_unit": doc.business_unit, "counterparty": doc.counterparty, "geography": doc.geography,
-            "confidentiality_level": doc.confidentiality_level, "review_priority": doc.review_priority,
+            "confidentiality_level": doc.confidentiality_level,
+            "confidentiality_confidence": doc.confidentiality_confidence,
+            "confidentiality_source": doc.confidentiality_source,
+            "confidentiality_reasons": doc.confidentiality_reasons,
+            "confidentiality_needs_confirmation": doc.confidentiality_needs_confirmation,
+            "confidentiality_history": override_history,
+            "review_priority": doc.review_priority,
             "org_profile_id": doc.org_profile_id, "status": doc.status, "job_id": doc.job_id,
             "contract_id": doc.contract_id, "clauses": clause_payload,
             "executive_summary": executive_summary,
@@ -567,6 +602,41 @@ async def add_summary_version_endpoint(document_id: str, body: SummaryVersionReq
 async def get_summary_history_endpoint(document_id: str) -> dict:
     from ..db.repository import get_summary_history
     return {"versions": get_summary_history(document_id)}
+
+
+# confidentiality override (section 12.3): only senior_counsel/admin may override,
+# reason is required, every override is audited via ConfidentialityOverride
+CONFIDENTIALITY_LEVELS = ("public", "internal", "confidential", "highly_confidential")
+_OVERRIDE_ROLES = ("senior_counsel", "admin")
+
+
+class ConfidentialityOverrideRequest(BaseModel):
+    new_level: str = Field(..., description="public/internal/confidential/highly_confidential")
+    reason: str = Field(..., min_length=1, max_length=2000)
+
+
+@app.post("/api/documents/{document_id}/confidentiality", dependencies=[Depends(require_session)])
+async def override_confidentiality_endpoint(document_id: str, body: ConfidentialityOverrideRequest,
+                                             reviewer: dict = Depends(get_current_reviewer)) -> dict:
+    if reviewer["role"] not in _OVERRIDE_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Role '{reviewer['role']}' is not authorized to override confidentiality classification.",
+        )
+    if body.new_level not in CONFIDENTIALITY_LEVELS:
+        raise HTTPException(status_code=400, detail=f"new_level must be one of {CONFIDENTIALITY_LEVELS}")
+
+    from ..db.repository import override_confidentiality
+    try:
+        return override_confidentiality(document_id, body.new_level, body.reason, reviewer["username"])
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@app.get("/api/documents/{document_id}/confidentiality", dependencies=[Depends(require_session)])
+async def get_confidentiality_history_endpoint(document_id: str) -> dict:
+    from ..db.repository import get_confidentiality_history
+    return {"history": get_confidentiality_history(document_id)}
 
 
 # cross-portfolio conflict detection (section 6): scope by org_profile_id or

@@ -40,6 +40,7 @@ class IngestionState(TypedDict, total=False):
     text_chunks: list[dict]  # [{"text": str, "page_start": int, "page_end": int, "section": str|None}, ...]
     org_profile_id: Optional[str]  # resolves required_clause_checklist/risk_threshold_overrides in Postgres
     document_id: Optional[str]     # Postgres document.document_id, for clause/risk_flag rows
+    ocr_ratio: Optional[float]     # fraction of pages that needed OCR, used to discount confidentiality confidence
 
     # intermediate
     job_id: str
@@ -95,6 +96,24 @@ def start_job_node(state: IngestionState) -> dict:
     except Exception as e:  # noqa: BLE001
         print(f"[start_job] WARNING: executive summary generation failed: {type(e).__name__}: {e}")
     document_context["executive_summary"] = executive_summary
+
+    # Automatic confidentiality classification (blueprint section 12), run as soon
+    # as usable text is available -- same "don't make the reviewer wait" rationale
+    # as the executive summary above.
+    if state.get("document_id"):
+        try:
+            from .confidentiality import classify_document_confidentiality
+            from ..db.repository import apply_confidentiality_classification
+            classification = classify_document_confidentiality(
+                full_text,
+                document_type=document_context.get("contract_type"),
+                document_metadata={"document_name": state["document_name"]},
+                ocr_ratio=state.get("ocr_ratio") or 0.0,
+            )
+            apply_confidentiality_classification(state["document_id"], classification)
+            document_context["confidentiality_level"] = classification["level"]
+        except Exception as e:  # noqa: BLE001
+            print(f"[start_job] WARNING: confidentiality classification failed: {type(e).__name__}: {e}")
 
     print(f"[start_job] job_id={job_id} contract_id={contract_id}")
     if document_context.get("subject_matter"):

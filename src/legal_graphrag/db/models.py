@@ -118,11 +118,16 @@ class Document(Base):
     document_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(500), nullable=True)  # MinIO object key
+    collection_name: Mapped[str] = mapped_column(String(500), nullable=True)  # Chroma collection this document's chunks live in
     document_type: Mapped[str] = mapped_column(String(100), nullable=True)  # contract_type
     business_unit: Mapped[str] = mapped_column(String(200), nullable=True)
     counterparty: Mapped[str] = mapped_column(String(200), nullable=True)
     geography: Mapped[str] = mapped_column(String(100), nullable=True)
     confidentiality_level: Mapped[str] = mapped_column(String(50), nullable=True)
+    confidentiality_confidence: Mapped[float] = mapped_column(Float, nullable=True)
+    confidentiality_source: Mapped[str] = mapped_column(String(20), nullable=True)  # automatic/manual_override/default
+    confidentiality_reasons: Mapped[list] = mapped_column(JSON, nullable=True)  # [{"reason","page","evidence"}, ...]
+    confidentiality_needs_confirmation: Mapped[bool] = mapped_column(Boolean, default=False)  # deterministic/LLM disagreed by >1 level
     review_priority: Mapped[str] = mapped_column(String(50), nullable=True)  # low/medium/high/urgent
     org_profile_id: Mapped[str] = mapped_column(String(36), ForeignKey("org_profile.profile_id"), nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -135,6 +140,7 @@ class Document(Base):
     org_profile: Mapped["OrgProfile"] = relationship(back_populates="documents")
     clauses: Mapped[list["Clause"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     summary_versions: Mapped[list["SummaryVersion"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+    confidentiality_overrides: Mapped[list["ConfidentialityOverride"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
 
 class Clause(Base):
@@ -228,6 +234,26 @@ class SummaryVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     document: Mapped["Document"] = relationship(back_populates="summary_versions")
+
+
+class ConfidentialityOverride(Base):
+    """Append-only history of confidentiality-level changes for a document, both the
+    initial automatic classification and every human override thereafter (section 12.3).
+    Never update or delete a row here -- Document.confidentiality_level/source always
+    reflect the latest row, this table is the "override history" the UI shows."""
+    __tablename__ = "confidentiality_override"
+
+    override_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("document.document_id"), nullable=False)
+    previous_level: Mapped[str] = mapped_column(String(50), nullable=True)
+    new_level: Mapped[str] = mapped_column(String(50), nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False)  # automatic/manual_override/default
+    reason: Mapped[str] = mapped_column(Text, nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=True)
+    changed_by: Mapped[str] = mapped_column(String(100), nullable=True)  # null for automatic classification
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    document: Mapped["Document"] = relationship(back_populates="confidentiality_overrides")
 
 
 class KnowledgeReference(Base):

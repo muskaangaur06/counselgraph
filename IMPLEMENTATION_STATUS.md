@@ -37,8 +37,8 @@
 | Ask/Q&A (single-shot, not multi-turn) | Present but NOT multi-turn chat | index.html handleAskResponse / askThreadId flow, now a floating chat-style widget (#chatLauncher/#chatPanel) | collectionName now derived automatically (deriveCollectionNameFromFilename fallback) instead of requiring manual entry -- no visible collection input at all anymore. Still no conversational memory across questions -- blueprint's "in-progress chat conversion" has NOT landed; this is still single-question-per-thread, just with a chat-shaped UI. |
 | Shared document context (frontend) | Present, read-only | index.html `currentDocument` global object, persisted via ?document=<id> URL + localStorage, universal #docHeader shown on all tabs except Upload | askCollection/auditJobId/documentDetailId are genuinely read-only (not just prefilled) once a document is selected; blueprint 17.1/17.2 gaps closed in Phase 3. |
 | Eval matrix / dashboard panel | Present, cache-based | GET /api/eval/summary (reads cache), POST /api/eval/refresh (live Gemini eval, writes cache) | Only 3 metrics (clause_recall, risk_precision, missing_clause_detection_correct), not the full metric suite in blueprint sections 21-28 |
-| Confidentiality classification | Manual only | Document.confidentiality_level field exists, set via org_profile.confidentiality_default | No automatic hybrid classifier (deterministic + Gemini), no override audit trail -- blueprint section 12 is genuinely missing |
-| Multi-tenancy (customer/org/BU) | Partial (Phase 1 done) | tests/test_tenancy_migration.py, verified against live Postgres | Customer/Jurisdiction/BusinessUnit tables added, org_profile.customer_id backfilled to Tata Group. No DocumentType table yet. Query-layer tenant scoping/isolation not wired in (single customer today, nothing to isolate against yet) -- deferred to Phase 4+. |
+| Confidentiality classification | Automatic + manual override (Phase 4 done) | graphrag/confidentiality.py (deterministic signals + Gemini + safe combination), confidentiality_override table, tests/test_confidentiality_classifier.py + test_confidentiality_override.py | Runs automatically at ingestion in start_job_node; explicit labels never downgraded by the LLM; low OCR ratio discounts confidence; senior_counsel/admin-only override with mandatory reason, always audited. Access control only gates GET /api/documents/{id} so far, not every clause/risk-flag route. |
+| Multi-tenancy (customer/org/BU) | Partial (Phase 1 done) | tests/test_tenancy_migration.py, verified against live Postgres | Customer/Jurisdiction/BusinessUnit tables added, org_profile.customer_id backfilled to Tata Group. No DocumentType table yet. Query-layer tenant scoping/isolation not wired in (single customer today, nothing to isolate against yet) -- deferred to Phase 5+. |
 | Decision Brief + approval chain | Missing | No DecisionBrief or ApprovalChain models/routes | Blueprint section 15 genuinely missing |
 | Standards resolution hierarchy | Partial | KnowledgeReference has business_unit_scope/jurisdiction_scope/approval_status fields, but no deterministic resolution service implementing the 8-level precedence in blueprint 11.1 | |
 | Swagger/OpenAPI in production | Not gated | FastAPI() call has no docs_url/redoc_url/openapi_url environment guard | Blueprint section 6.1 gap, real and unconditional |
@@ -47,10 +47,11 @@
 | API healthcheck | Missing | docker-compose.yml has healthchecks for postgres/neo4j/minio but not for `api` service | Blueprint 32.2 gap |
 
 ## Current Phase
-- Phase: 3 (Document-centric frontend) -- COMPLETE
-- Objective: make the selected document persist across refresh, add a universal document header, convert auto-filled-but-editable inputs to read-only, prevent stale results from a previous document lingering after switching
-- Files changed: src/legal_graphrag/api/static/index.html only (no backend changes this phase)
-- Focused tests: no new pytest tests (frontend-only change) -- verified with 3 scripted Playwright runs against the live container (see Phase 3 Decisions); full fast suite re-run for regression (31 passed, unaffected since no Python changed)
+- Phase: 4 (Automatic confidentiality classification) -- COMPLETE
+- Objective: classify every document's confidentiality level automatically at ingestion (deterministic keyword scan + Gemini structured call, safely combined per section 12.2.C), add human override with mandatory reason/audit trail, gate document access by level, surface it all in the UI
+- Files changed: src/legal_graphrag/db/models.py (new fields on Document, new ConfidentialityOverride table), src/legal_graphrag/db/repository.py (apply_confidentiality_classification, override_confidentiality, get_confidentiality_history), src/legal_graphrag/graphrag/confidentiality.py (new module: deterministic signals, Gemini call, safe combination), src/legal_graphrag/graphrag/langgraph_agent.py (classification hook in start_job_node), src/legal_graphrag/api/main.py (ocr_ratio computation, override endpoint, access-control gate on document detail, collection_name fix), src/legal_graphrag/api/static/index.html (confidentiality badge/details/override form/history)
+- Also fixed in this phase (flagged in prior session as a pre-Phase-4 gap): collection_name is now a real column on Document, populated on upload and returned by GET /api/documents/{id} -- the frontend's regex-derivation fallback (deriveCollectionNameFromFilename) is now only used for rows created before this column existed
+- Focused tests: 19 new tests -- tests/test_confidentiality_classifier.py (11, pure logic: explicit labels, sensitive signals, no-downgrade rule, disagreement->confirmation, low-OCR->low-confidence, never-silently-public) + tests/test_confidentiality_override.py (8, API-level: override authorization by role, audit record written, reason required, access control by level, access control changes live after an override). All 19 pass. Full suite re-run: 50 passed total (31 prior + 19 new); 3 pre-existing failures in test_review_action_authorization.py only reproduce when run in the same process as other test files back-to-back, caused by a shared in-process login rate limiter being hit across files -- confirmed pre-existing and unrelated by running that file alone (7/7 pass isolated).
 - Blockers: none
 
 ## Out-of-Phase: UI Redesign (user-directed, not blueprint-driven)
@@ -67,6 +68,18 @@
 
 ## Known Gap: collection_name not persisted on Document
 - `Document` has no `collection_name` column. It's computed transiently in main.py's start_ingestion_job and never stored, so the frontend has to re-derive it from the filename via the same regex whenever a document is loaded any way other than "just finished uploading." Fixed at the frontend layer for now (see UI Redesign section above); the correct fix is a small migration adding `collection_name` to `Document` and having `/api/documents/{id}` return it directly. Not done -- flagging for a future phase since it's backend schema work, not UI.
+
+## Phase 4 Decisions
+- No trained ML classifier -- section 12.2 specifies a hybrid of a deterministic keyword/label regex scan plus a Gemini structured call, combined by explicit safety rules (never let the LLM downgrade an explicit label, flag >1-level disagreement for human confirmation, discount confidence on high OCR ratio, never silently default to public). Implemented exactly that in the new graphrag/confidentiality.py, no model file/training data involved.
+- OCR ratio (fraction of pages that needed OCR) is computed in main.py's _ingest() where low_text_pages/pages are already available, and threaded through IngestionState.ocr_ratio into start_job_node -- there's no existing per-page OCR confidence score anywhere in the pipeline, so this ratio is the practical proxy for "low OCR confidence" the blueprint calls for.
+- Classification runs inside start_job_node, in the same place and for the same reason the executive summary already does (full_text and document_id are both available there, and it should happen once at ingestion, not on every later fetch).
+- New ConfidentialityOverride table (not reuse of the generic AuditLog) because section 12.3 requires specific structured fields (previous_level, new_level, source, reason, changed_by) the generic audit_log.details JSON blob doesn't enforce. A manual override also writes a row to the generic AuditLog (stage="confidentiality") so it shows up in the existing document-scoped audit view too -- belt and suspenders, not a replacement.
+- apply_confidentiality_classification() (automatic path) refuses to overwrite a document once confidentiality_source == "manual_override" -- an automatic re-classification (e.g. a future re-ingestion) must never silently clobber a human's decision. override_confidentiality() (manual path) has no such guard -- a human can always override another human's or the system's prior call, that's the point of the feature.
+- Access control (12.4) reuses the existing admin/senior_counsel/reviewer roles instead of inventing an org/BU-scoped permission system: highly_confidential requires senior_counsel or admin, every other level is open to any authenticated reviewer. No "explicitly assigned users" list exists yet (would need the still-missing user-to-organization assignment noted in Known Gaps) -- flagging as a narrower interpretation of 12.4's example policy, not the full thing.
+- Only /api/documents/{id} (the document detail endpoint) enforces the confidentiality gate this phase. Clause/risk-flag data reachable via other routes (e.g. portfolio conflicts) is not yet individually gated -- acceptable for now since there's a single customer and no cross-org access scenario to defend against yet (same reasoning as the still-open tenant-isolation gap from Phase 1), but worth revisiting once Phase 5's tenant-filtered RAG lands.
+- Fixed the pre-existing collection_name gap (flagged in the prior session as worth doing before Phase 4 touched Document again) in the same pass: added the column, populated it in start_ingestion_job, and returned it from GET /api/documents/{id}. The frontend's regex-based deriveCollectionNameFromFilename fallback is kept only for documents created before this column existed.
+- Test suite: unit tests for the pure classification logic (test_confidentiality_classifier.py) need no mocking since detect_deterministic_signals/combine_classification take plain dicts and do no I/O -- classify_with_llm (the actual Gemini call) is exercised only implicitly via the ingestion path, not directly unit-tested, since it requires a live GEMINI_API_KEY the same way the existing executive-summary/risk-flagging LLM calls are (consistent with how those are tested elsewhere in this repo).
+- Verified the full UI end-to-end against the rebuilt live Docker container (not just pytest): created a document directly via the repository layer against live Postgres, logged in as admin via Playwright, confirmed the badge/evidence render in both the document header and the Document Detail view, submitted a real override through the form, and confirmed the badge/source/confidence updated live and a new row appeared in Override History -- all via a throwaway Playwright script, cleaned up afterward per the documented workflow. Did not re-verify the reviewer-blocked-from-highly_confidential case in the browser (only one admin account exists in this container's REVIEWERS); that path is covered by test_confidentiality_override.py instead.
 
 ## Phase 3 Decisions
 - currentDocument was previously a plain in-memory JS variable with zero persistence -- a refresh lost the selected document entirely. Fixed with a dual mechanism: the document_id is written to the URL as ?document=<id> (shareable, and the source of truth on load) and the fuller context (jobId/collectionName/docMeta) is cached in localStorage. On load, if the URL names a document, it wins over any stale cached one; if only a stored context exists (no URL), that's restored into the URL via history.replaceState.
@@ -96,7 +109,8 @@
 | 0 | Complete | ab1ae7e, eefe70a | 22 passed, 2 failed / 24 total, 728s | Failures: neo4j DNS resolution from host process, not an app bug. See Environment Constraint below. |
 | 1 | Complete | 7f39083 | 24 passed (19 pre-existing + 5 new tenancy tests), verified against live Postgres too | Customer/Jurisdiction/BusinessUnit tables added, org_profile backfilled. See Phase 1 Decisions above. |
 | 2 | Complete | 3ff2821 | 31 passed (24 pre-existing + 7 new authorization tests); verified against live Docker container (rebuild + health check + /docs 200 + Playwright login/dropdown/logout screenshots) | Swagger env-gated, profile dropdown, senior_counsel routing enforced. See Phase 2 Decisions above. |
-| 3 | Complete | pending (this phase not yet committed) | 31 passed (unaffected, frontend-only change); verified with 3 scripted Playwright runs against the live container | URL/localStorage document persistence, universal document header, read-only metadata fields, stale-result cleanup on document switch. See Phase 3 Decisions above. |
+| 3 | Complete | 2aa6539 (bundled with UI redesign commits) | 31 passed (unaffected, frontend-only change); verified with 3 scripted Playwright runs against the live container | URL/localStorage document persistence, universal document header, read-only metadata fields, stale-result cleanup on document switch. See Phase 3 Decisions above. |
+| 4 | Complete | pending (this phase not yet committed) | 50 passed total (31 prior + 19 new); 3 pre-existing rate-limiter flakes confirmed unrelated | Hybrid deterministic+Gemini confidentiality classifier, override + audit trail, access control by level, UI badge/history, collection_name persistence fix. See Phase 4 Decisions above. |
 
 ## Committed Changes (pre-existing at session start, reviewed then committed)
 Reviewed via `git diff`, not discarded, committed as ab1ae7e "Fix document context threading":
@@ -123,6 +137,7 @@ MASTER_BLUEPRINT.md and IMPLEMENTATION_STATUS.md committed separately as eefe70a
 
 Existing tables (all confirmed in src/legal_graphrag/db/models.py): org_profile, document, clause, risk_flag, playbook_entry, review_action, audit_log, summary_version, knowledge_reference.
 New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no rows yet).
+New in Phase 4: document.collection_name, document.confidentiality_confidence/source/reasons/needs_confirmation columns; new confidentiality_override table (append-only override history). All applied via the same `_add_missing_columns()`/`create_all()` retrofit mechanism, verified against the local SQLite fallback via the new test suite (live Postgres retrofit not independently re-verified this session, same mechanism as Phase 1 which was).
 
 ## API State
 | Route | Existing/New | Status | Auth | Test |
@@ -137,13 +152,14 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 | GET /api/audit/{job_id} | Existing | Working | session | 1 of 2 failures here (404 case, Neo4j DNS) |
 | GET /api/dashboard/stats | Existing | Working | session | |
 | GET /api/org-profiles | Existing | Working | session | |
-| GET /api/documents/{id} | Existing | Working | session | |
+| GET /api/documents/{id} | Existing, enhanced | Working, now enforces confidentiality-level access control | session + confidentiality gate | tests/test_confidentiality_override.py |
 | POST /api/review-actions | Existing, enhanced | Working, now enforces role seniority vs. risk_flag.assigned_role | session + role check | tests/test_review_action_authorization.py |
 | GET/POST /api/documents/{id}/summary | Existing | Working | session | |
+| POST /api/documents/{id}/confidentiality | New (Phase 4) | Working, senior_counsel/admin only, requires reason | session + role check | tests/test_confidentiality_override.py |
+| GET /api/documents/{id}/confidentiality | New (Phase 4) | Working, returns override history | session | tests/test_confidentiality_override.py |
 | GET /api/portfolio/conflicts | Existing | Working | session | |
 | GET /api/eval/summary, POST /api/eval/refresh | Existing (uncommitted) | Working per code review | session | not yet independently tested |
 | GET /health | Existing | Working | none | |
-| Confidentiality classify/override endpoints | Missing | -- | -- | blueprint section 19 |
 | Decision Brief / approval-chain endpoints | Missing | -- | -- | blueprint section 19 |
 | Standards resolution endpoint | Missing | -- | -- | blueprint section 19 |
 
@@ -154,6 +170,7 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 | Upload/ingestion form | Present | Yes (setCurrentDocument on response) | manual only |
 | Ask/Q&A panel | Present, single-shot | Yes (read-only once set, not just prefilled) | Playwright, manual |
 | Document Detail view | Present | Yes | Playwright, manual |
+| Confidentiality badge/details/override form/history | Present (Phase 4) | Yes -- badge in doc header + full block in Document Detail view | Playwright against live container: badge renders, evidence renders, override submit updates badge/source/confidence live and appends to history |
 | Portfolio conflicts | Present | Partial | manual only |
 | Audit lookup | Present | Yes (read-only once set, not just prefilled) | Playwright, manual |
 | Eval/Stats panel | Present, minimal (3 metrics) | N/A | manual only |
@@ -171,7 +188,7 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 
 ## Known Gaps
 - [x] Multi-tenancy model -- Customer/Jurisdiction/BusinessUnit added, org_profile backfilled (Phase 1). DocumentType table still missing. Query-layer isolation (RLS/auth-scoping) still missing -- see Phase 1 Decisions.
-- [ ] Automatic hybrid confidentiality classification + override audit -- section 12
+- [x] Automatic hybrid confidentiality classification + override audit -- fixed Phase 4, deterministic+Gemini hybrid classifier, ConfidentialityOverride history table, /api/documents/{id}/confidentiality override endpoint, access control gated on document detail. Access control only covers the document-detail endpoint so far, not every clause/risk-flag route -- see Phase 4 Decisions.
 - [ ] Deterministic standards-resolution service (8-level hierarchy) -- section 11
 - [ ] Decision Brief generation + approval chain -- section 15
 - [ ] Multi-turn per-document chat (current Ask is still single-shot per thread) -- section 17.5
@@ -187,13 +204,14 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 - [ ] Podman migration for deployment target (user-requested deviation from Docker-only wording)
 
 ## Next Exact Actions
-1. Begin Phase 4 (Automatic confidentiality): add the classification migration/fields, hybrid deterministic+Gemini classifier, human override + audit trail, UI badge/history. This is the next blueprint phase per MASTER_BLUEPRINT.md section 33 -- Phases 0-3 are done, the UI redesign since then was an out-of-phase user request (see that section above), not a blueprint phase.
-2. User-to-organization assignment is still an open gap (reviewer roster has roles but no org scope) -- revisit when Phase 5 (tenant-filtered RAG) needs real cross-org isolation to test against, since there's still only one customer/no real cross-org scenario to enforce today.
-3. Known gap from the UI redesign: `collection_name` isn't persisted on `Document` (see "Known Gap" section above) -- worth fixing with a small migration before Phase 4's confidentiality work touches Document again, so it's one migration instead of two.
-4. Not yet pushed to GitHub (`https://github.com/muskaangaur06/counselgraph`) -- 7 commits ahead of origin/main. Push only if/when explicitly asked.
+1. Begin Phase 5 (Standards hierarchy and tenant-filtered RAG): this is the next blueprint phase per MASTER_BLUEPRINT.md section 33 -- Phases 0-4 are now done.
+2. User-to-organization assignment is still an open gap (reviewer roster has roles but no org scope) -- revisit when Phase 5's tenant-filtered RAG needs real cross-org isolation to test against, since there's still only one customer/no real cross-org scenario to enforce today. This also limits Phase 4's access control to role-based only (no "explicitly assigned users" list per section 12.4's example policy).
+3. Confidentiality access control (Phase 4) only gates GET /api/documents/{id} -- other routes that surface clause/risk-flag content (e.g. portfolio conflicts) aren't individually gated yet. Revisit alongside Phase 5's tenant-filtered RAG work.
+4. Not yet pushed to GitHub (`https://github.com/muskaangaur06/counselgraph`) -- 8 commits ahead of origin/main after this phase. Push only if/when explicitly asked.
 
 ## Handoff Notes (read this first in a new session)
-- This session did Phases 0-3 of MASTER_BLUEPRINT.md, then a large out-of-phase UI visual redesign requested directly by the user (not in the blueprint) -- see "Out-of-Phase: UI Redesign" section above for what changed and why. `MASTER_BLUEPRINT.md` is the original directive, unmodified; this file is the live status tracker.
+- Phases 0-4 of MASTER_BLUEPRINT.md are done. Between Phase 3 and Phase 4 there was also a large out-of-phase UI visual redesign requested directly by the user (not in the blueprint) -- see "Out-of-Phase: UI Redesign" section above for what changed and why. `MASTER_BLUEPRINT.md` is the original directive, unmodified; this file is the live status tracker.
+- **Phase 4 confidentiality classification is NOT an ML model** -- it's a deterministic keyword/label regex scan plus a Gemini structured call (graphrag/confidentiality.py), combined by explicit safety rules (never downgrade an explicit label, flag disagreement >1 level for human confirmation, discount confidence when many pages needed OCR, never silently default to public). See Phase 4 Decisions for the exact rules and why no trained classifier was built.
 - **Podman decision**: user asked to use Podman instead of Docker for the eventual deployment target (to reduce RAM overhead vs. Docker Desktop). This has NOT been implemented yet -- still on plain `docker compose` throughout Phases 0-3 and the UI redesign. Revisit at Phase 12 (Docker/Podman production readiness) per the blueprint's own phase ordering; don't switch earlier than that without a reason, since Podman Compose vs. `docker-compose.yml` compatibility hasn't been verified at all.
 - **Host is memory-constrained** (~13.6GB total, observed as low as ~1.8GB free during dependency installs). `pip install` needs `--no-cache-dir` to avoid a `MemoryError` during wheel-hash verification (already documented, not a persistent blocker). Loading the sentence-transformer embedder directly in a pytest process (not via Docker) can hit a Windows "paging file too small" OSError -- work around it by mocking `preload_models` in tests that don't need embeddings, rather than trying to fix the OS page file.
 - **Dev login for manual/Playwright testing**: username `admin`, password `admin@321` (the documented insecure fallback default in security.py, used when no `.env` REVIEWERS/ADMIN_* vars override it -- not a real secret, safe to reuse in tests).
@@ -207,7 +225,7 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 cd D:\LegalAssistant
 .venv/Scripts/python.exe -m pip check   # clean, 175 packages
 .venv/Scripts/python.exe -c "import torch; print(torch.__version__, torch.cuda.is_available())"  # 2.13.0+cpu, False
-.venv/Scripts/python.exe -m pytest tests/ -q --ignore=tests/eval --ignore=tests/test_integration_ingestion.py   # 31 passed
+.venv/Scripts/python.exe -m pytest tests/ -q --ignore=tests/eval --ignore=tests/test_integration_ingestion.py   # 50 passed (3 rate-limiter flakes when run back-to-back with test_review_action_authorization.py, confirmed pre-existing -- see Phase 4 notes)
 docker compose build api && docker compose up -d api   # rebuilds image with schema+auth changes, seed_defaults() runs on startup
 docker ps -a   # postgres, neo4j, minio, api all healthy/running
 curl http://localhost:8000/docs   # 200 by default (ENVIRONMENT unset = development)

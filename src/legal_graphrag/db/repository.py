@@ -14,6 +14,7 @@ from .dedup import clause_content_hash
 from .models import (
     AuditLog,
     Clause,
+    ConfidentialityOverride,
     Document,
     KnowledgeReference,
     OrgProfile,
@@ -107,11 +108,16 @@ def get_document(document_id: str) -> Optional[dict]:
             "document_id": doc.document_id,
             "filename": doc.filename,
             "storage_key": doc.storage_key,
+            "collection_name": doc.collection_name,
             "document_type": doc.document_type,
             "business_unit": doc.business_unit,
             "counterparty": doc.counterparty,
             "geography": doc.geography,
             "confidentiality_level": doc.confidentiality_level,
+            "confidentiality_confidence": doc.confidentiality_confidence,
+            "confidentiality_source": doc.confidentiality_source,
+            "confidentiality_reasons": doc.confidentiality_reasons,
+            "confidentiality_needs_confirmation": doc.confidentiality_needs_confirmation,
             "review_priority": doc.review_priority,
             "org_profile_id": doc.org_profile_id,
             "status": doc.status,
@@ -263,6 +269,101 @@ def get_summary_history(document_id: str) -> list[dict]:
         return [
             {"version_number": r.version_number, "summary_text": r.summary_text,
              "edited_by": r.edited_by, "created_at": r.created_at.isoformat()}
+            for r in rows
+        ]
+
+
+def apply_confidentiality_classification(document_id: str, classification: dict) -> dict:
+    """Persists an automatic classification result onto Document and appends a
+    ConfidentialityOverride history row. Never overwrites a level a human already
+    set via override -- automatic classification only applies to a document that
+    doesn't have a confidentiality_source of manual_override yet."""
+    with get_session() as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            return {}
+        if doc.confidentiality_source == "manual_override":
+            return {"skipped": True, "reason": "document already has a manual override"}
+
+        previous_level = doc.confidentiality_level
+        doc.confidentiality_level = classification["level"]
+        doc.confidentiality_confidence = classification.get("confidence")
+        doc.confidentiality_source = "automatic"
+        doc.confidentiality_reasons = classification.get("reasons") or []
+        doc.confidentiality_needs_confirmation = bool(classification.get("needs_confirmation"))
+
+        session.add(ConfidentialityOverride(
+            document_id=document_id,
+            previous_level=previous_level,
+            new_level=classification["level"],
+            source="automatic",
+            reason=None,
+            confidence=classification.get("confidence"),
+            changed_by=None,
+        ))
+        session.flush()
+        return {"document_id": document_id, "level": doc.confidentiality_level}
+
+
+def override_confidentiality(document_id: str, new_level: str, reason: str, changed_by: str) -> dict:
+    """Applies a human override, per section 12.3: requires new level, reason,
+    user identity (timestamp is stamped automatically). Always audited via the
+    ConfidentialityOverride row this writes."""
+    with get_session() as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            raise ValueError(f"No document found for document_id={document_id}")
+
+        previous_level = doc.confidentiality_level
+        doc.confidentiality_level = new_level
+        doc.confidentiality_confidence = 1.0
+        doc.confidentiality_source = "manual_override"
+        doc.confidentiality_needs_confirmation = False
+
+        override = ConfidentialityOverride(
+            document_id=document_id,
+            previous_level=previous_level,
+            new_level=new_level,
+            source="manual_override",
+            reason=reason,
+            confidence=1.0,
+            changed_by=changed_by,
+        )
+        session.add(override)
+        session.add(AuditLog(
+            document_id=document_id,
+            stage="confidentiality",
+            actor=changed_by,
+            action="manual_override",
+            details={"previous_level": previous_level, "new_level": new_level, "reason": reason},
+        ))
+        session.flush()
+        return {
+            "document_id": document_id,
+            "previous_level": previous_level,
+            "new_level": new_level,
+            "override_id": override.override_id,
+        }
+
+
+def get_confidentiality_history(document_id: str) -> list[dict]:
+    with get_session() as session:
+        rows = session.execute(
+            select(ConfidentialityOverride)
+            .where(ConfidentialityOverride.document_id == document_id)
+            .order_by(ConfidentialityOverride.created_at.asc())
+        ).scalars().all()
+        return [
+            {
+                "override_id": r.override_id,
+                "previous_level": r.previous_level,
+                "new_level": r.new_level,
+                "source": r.source,
+                "reason": r.reason,
+                "confidence": r.confidence,
+                "changed_by": r.changed_by,
+                "created_at": r.created_at.isoformat(),
+            }
             for r in rows
         ]
 

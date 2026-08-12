@@ -908,6 +908,10 @@ function confidentialityLabel(level) {
   return level ? level.replace(/_/g, " ") : null;
 }
 
+function confidentialityStampClass(level) {
+  return { highly_confidential: "high", confidential: "medium", internal: "neutral", public: "low" }[level] || "neutral";
+}
+
 function renderDocHeader() {
   const header = document.getElementById("docHeader");
   if (!header) return;
@@ -933,7 +937,11 @@ function renderDocHeader() {
   if (meta.counterparty) metaParts.push(`<span>Counterparty <b>${escapeHtml(meta.counterparty)}</b></span>`);
   if (meta.document_type) metaParts.push(`<span>Type <b>${escapeHtml(meta.document_type)}</b></span>`);
   const confLabel = confidentialityLabel(meta.confidentiality_level);
-  if (confLabel) metaParts.push(`<span>Confidentiality <b>${escapeHtml(confLabel)}</b></span>`);
+  if (confLabel) {
+    const stampClass = confidentialityStampClass(meta.confidentiality_level);
+    const needsConfirm = meta.confidentiality_needs_confirmation ? ` <span class="stamp gap">needs confirmation</span>` : "";
+    metaParts.push(`<span>Confidentiality <span class="stamp ${stampClass}">${escapeHtml(confLabel)}</span>${needsConfirm}</span>`);
+  }
   if (currentDocument.jobId) metaParts.push(`<span>Job <b>${escapeHtml(currentDocument.jobId)}</b></span>`);
   if (currentDocument.documentId) metaParts.push(`<span>Doc ID <b>${escapeHtml(currentDocument.documentId.slice(0, 8))}</b></span>`);
   document.getElementById("docHeaderMeta").innerHTML = metaParts.join("");
@@ -1365,6 +1373,90 @@ function renderPlaybookBlock(pb) {
   `;
 }
 
+function renderConfidentialityBlock(doc) {
+  const level = doc.confidentiality_level;
+  const stampClass = confidentialityStampClass(level);
+  const label = confidentialityLabel(level) || "not classified";
+  const reasons = doc.confidentiality_reasons || [];
+  const history = doc.confidentiality_history || [];
+  const levels = ["public", "internal", "confidential", "highly_confidential"];
+
+  let html = `
+    <div class="exhibit" id="confidentialityBlock">
+      <span class="exhibit-label">Confidentiality</span>
+      <h3>Classification</h3>
+      <div class="row" style="align-items:center; gap:12px;">
+        <span class="stamp ${stampClass}">${escapeHtml(label)}</span>
+        ${doc.confidentiality_needs_confirmation ? `<span class="stamp gap">needs confirmation</span>` : ""}
+        <span class="clause-meta">Source: ${escapeHtml(doc.confidentiality_source || "n/a")}
+          &middot; Confidence: ${confidenceValue(doc.confidentiality_confidence)}</span>
+      </div>
+  `;
+
+  if (reasons.length) {
+    html += `<div class="clause-meta" style="margin-top:10px;">Evidence</div><ul style="font-family:var(--sans); font-size:15px; line-height:1.5;">`;
+    for (const r of reasons) {
+      html += `<li>${escapeHtml(r.reason || "")}${r.page ? ` (p.${escapeHtml(String(r.page))})` : ""}${r.evidence ? `: "${escapeHtml(r.evidence)}"` : ""}</li>`;
+    }
+    html += `</ul>`;
+  }
+
+  html += `
+    <form id="confidentialityOverrideForm" style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+      <input type="hidden" id="confidentialityOverrideDocId" value="${escapeHtml(doc.document_id || "")}" />
+      <div>
+        <label for="confidentialityOverrideLevel">Override level</label>
+        <select id="confidentialityOverrideLevel">
+          ${levels.map(l => `<option value="${l}" ${l === level ? "selected" : ""}>${confidentialityLabel(l)}</option>`).join("")}
+        </select>
+      </div>
+      <div style="flex:1 1 260px;">
+        <label for="confidentialityOverrideReason">Reason</label>
+        <input type="text" id="confidentialityOverrideReason" placeholder="Why is this level correct?" />
+      </div>
+      <button type="submit" class="secondary">Override</button>
+    </form>
+    <div id="confidentialityOverrideResult" class="clause-meta" style="margin-top:8px;"></div>
+  `;
+
+  if (history.length) {
+    html += `<div class="clause-meta" style="margin-top:14px;">Override History</div><ul style="font-family:var(--sans); font-size:15px; line-height:1.5;">`;
+    for (const h of history) {
+      html += `<li>${escapeHtml(h.created_at)} &middot; ${escapeHtml(h.source)} by ${escapeHtml(h.changed_by || "system")}: `
+        + `${escapeHtml(h.previous_level || "none")} &rarr; ${escapeHtml(h.new_level)}${h.reason ? ` (${escapeHtml(h.reason)})` : ""}</li>`;
+    }
+    html += `</ul>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+document.addEventListener("submit", async (e) => {
+  if (e.target.id !== "confidentialityOverrideForm") return;
+  e.preventDefault();
+  const documentId = document.getElementById("confidentialityOverrideDocId").value;
+  const newLevel = document.getElementById("confidentialityOverrideLevel").value;
+  const reason = document.getElementById("confidentialityOverrideReason").value.trim();
+  const resultEl = document.getElementById("confidentialityOverrideResult");
+  if (!reason) {
+    resultEl.textContent = "A reason is required to override the confidentiality level.";
+    return;
+  }
+  try {
+    await apiFetch(`/api/documents/${encodeURIComponent(documentId)}/confidentiality`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_level: newLevel, reason }),
+    });
+    resultEl.textContent = "Override saved.";
+    const out = document.getElementById("reviewResult");
+    if (out) await loadDocumentDetailInto(documentId, out);
+  } catch (err) {
+    resultEl.textContent = `Override failed: ${err.message || err}`;
+  }
+});
+
 function renderDocumentDetail(doc) {
   let html = `
     <div class="exhibit">
@@ -1381,6 +1473,8 @@ function renderDocumentDetail(doc) {
       </div>
     </div>
   `;
+
+  html += renderConfidentialityBlock(doc);
 
   if (doc.executive_summary) {
     html += `
@@ -1458,11 +1552,9 @@ function renderDocumentDetail(doc) {
   return html;
 }
 
-// Matches main.py's start_ingestion_job: resolved_collection_name = collection_name
-// or re.sub(r"\W+", "_", document_name). collection_name itself isn't persisted on
-// the Document row, so this is the only way to recover it once a document is
-// loaded some way other than "just finished uploading" (by ID, or resuming a
-// paused job) -- it'll be wrong if a future backend change alters that derivation.
+// Fallback only: GET /api/documents/{id} now returns the real persisted
+// collection_name. This derivation (matching main.py's resolved_collection_name)
+// only matters for rows created before that column existed.
 function deriveCollectionNameFromFilename(filename) {
   return (filename || "").replace(/[^A-Za-z0-9_]+/g, "_");
 }
@@ -1473,10 +1565,11 @@ async function loadDocumentDetailInto(documentId, out) {
     documentId: doc.document_id,
     documentName: doc.filename,
     jobId: doc.job_id || currentDocument.jobId,
-    collectionName: currentDocument.collectionName || deriveCollectionNameFromFilename(doc.filename),
+    collectionName: doc.collection_name || currentDocument.collectionName || deriveCollectionNameFromFilename(doc.filename),
     docMeta: {
       status: doc.status, org_profile_id: doc.org_profile_id, counterparty: doc.counterparty,
       document_type: doc.document_type, confidentiality_level: doc.confidentiality_level,
+      confidentiality_needs_confirmation: doc.confidentiality_needs_confirmation,
       business_unit: doc.business_unit,
     },
   });
