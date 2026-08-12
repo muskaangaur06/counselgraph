@@ -3,8 +3,8 @@
 ## Repository
 - Path: D:\LegalAssistant
 - Branch: main
-- Latest commit: 7f39083 (Add tenancy schema), 3 commits ahead of origin/main, not pushed. Phase 2 changes below not committed yet.
-- Working tree: modified, see Phase 2 files below
+- Latest commit: 3ff2821 (Add auth and profile menu), 4 commits ahead of origin/main, not pushed. Phase 3 changes below not committed yet.
+- Working tree: modified, see Phase 3 files below
 - Last updated: 2026-08-12
 
 ## Environment
@@ -47,11 +47,18 @@
 | API healthcheck | Missing | docker-compose.yml has healthchecks for postgres/neo4j/minio but not for `api` service | Blueprint 32.2 gap |
 
 ## Current Phase
-- Phase: 2 (Auth, profile, and access control) -- COMPLETE
-- Objective: gate Swagger/docs by environment, add a real signed-in profile menu, centralize a permission check, add negative authorization tests
-- Files changed: src/legal_graphrag/api/main.py (docs_url/redoc_url/openapi_url gated by ENVIRONMENT; /api/review-actions now enforces can_act_on_assigned_role), src/legal_graphrag/api/security.py (VALID_ROLES seniority mapping + can_act_on_assigned_role()), src/legal_graphrag/db/repository.py (get_risk_flag()), src/legal_graphrag/api/static/index.html (profile dropdown replacing the static "signed in" label + bare logout button), tests/test_review_action_authorization.py (new, 7 tests)
-- Focused tests: tests/test_review_action_authorization.py (7 passed); full fast suite (31 passed)
+- Phase: 3 (Document-centric frontend) -- COMPLETE
+- Objective: make the selected document persist across refresh, add a universal document header, convert auto-filled-but-editable inputs to read-only, prevent stale results from a previous document lingering after switching
+- Files changed: src/legal_graphrag/api/static/index.html only (no backend changes this phase)
+- Focused tests: no new pytest tests (frontend-only change) -- verified with 3 scripted Playwright runs against the live container (see Phase 3 Decisions); full fast suite re-run for regression (31 passed, unaffected since no Python changed)
 - Blockers: none
+
+## Phase 3 Decisions
+- currentDocument was previously a plain in-memory JS variable with zero persistence -- a refresh lost the selected document entirely. Fixed with a dual mechanism: the document_id is written to the URL as ?document=<id> (shareable, and the source of truth on load) and the fuller context (jobId/collectionName/docMeta) is cached in localStorage. On load, if the URL names a document, it wins over any stale cached one; if only a stored context exists (no URL), that's restored into the URL via history.replaceState.
+- Added a real document header (#docHeader, filename + status badge + org profile/counterparty/type/confidentiality/job/doc-id) shown on every view, replacing the old Review-Workspace-only "Currently viewing: X" note. A "Change document" button clears it explicitly -- selecting a document is still deliberate, not automatic.
+- askCollection/auditJobId/documentDetailId now go read-only (grayed, field-readonly class) once currentDocument has a value for them, and revert to editable+cleared (not just editable+stale) when the document is cleared. Verified via Playwright: value is genuinely "" after clearing, not just unlocked with old text still showing.
+- No real per-document chat session exists yet to leak across documents (the "Ask" feature is still single-shot per section 17.5's known gap, tracked separately). What I did fix: clearCurrentDocument() now resets askThreadId and blanks askResult/auditResult/reviewResult, so switching documents can't leave a stale answer or audit result on screen that looks like it belongs to the newly-selected document.
+- Verified end-to-end with Playwright against the live Docker container: load a document by ID -> header renders with real metadata -> switch tabs (header + read-only fields persist) -> full page reload (header/URL restore correctly, confirmed via ?document=<id> in the URL) -> Change document (header disappears, all fields and result panels reset to empty/editable).
 
 ## Phase 2 Decisions
 - No public registration existed to remove (verified: no register routes/forms anywhere; "register open"/"Register of Legal Documents" in the UI is courthouse-docket theming, not a signup feature). Section 16.1 was already compliant.
@@ -73,7 +80,8 @@
 |---|---|---|---|---|
 | 0 | Complete | ab1ae7e, eefe70a | 22 passed, 2 failed / 24 total, 728s | Failures: neo4j DNS resolution from host process, not an app bug. See Environment Constraint below. |
 | 1 | Complete | 7f39083 | 24 passed (19 pre-existing + 5 new tenancy tests), verified against live Postgres too | Customer/Jurisdiction/BusinessUnit tables added, org_profile backfilled. See Phase 1 Decisions above. |
-| 2 | Complete | pending (this phase not yet committed) | 31 passed (24 pre-existing + 7 new authorization tests); verified against live Docker container (rebuild + health check + /docs 200 + Playwright login/dropdown/logout screenshots) | Swagger env-gated, profile dropdown, senior_counsel routing enforced. See Phase 2 Decisions above. |
+| 2 | Complete | 3ff2821 | 31 passed (24 pre-existing + 7 new authorization tests); verified against live Docker container (rebuild + health check + /docs 200 + Playwright login/dropdown/logout screenshots) | Swagger env-gated, profile dropdown, senior_counsel routing enforced. See Phase 2 Decisions above. |
+| 3 | Complete | pending (this phase not yet committed) | 31 passed (unaffected, frontend-only change); verified with 3 scripted Playwright runs against the live container | URL/localStorage document persistence, universal document header, read-only metadata fields, stale-result cleanup on document switch. See Phase 3 Decisions above. |
 
 ## Committed Changes (pre-existing at session start, reviewed then committed)
 Reviewed via `git diff`, not discarded, committed as ab1ae7e "Fix document context threading":
@@ -127,11 +135,12 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 ## Frontend State
 | Surface | Status | Document-context aware | Test |
 |---|---|---|---|
+| Universal document header | Present (Phase 3) | Yes -- filename/status/org/counterparty/type/confidentiality/job/doc-id | Playwright, manual |
 | Upload/ingestion form | Present | Yes (setCurrentDocument on response) | manual only |
-| Ask/Q&A panel | Present, single-shot | Partial (auto-fills collection, editable) | manual only |
-| Document Detail view | Present | Yes | manual only |
+| Ask/Q&A panel | Present, single-shot | Yes (read-only once set, not just prefilled) | Playwright, manual |
+| Document Detail view | Present | Yes | Playwright, manual |
 | Portfolio conflicts | Present | Partial | manual only |
-| Audit lookup | Present | Yes (auto-fills job ID) | manual only |
+| Audit lookup | Present | Yes (read-only once set, not just prefilled) | Playwright, manual |
 | Eval/Stats panel | Present, minimal (3 metrics) | N/A | manual only |
 | Decision Brief / Approval UI | Missing | -- | -- |
 | Standards administration UI | Missing | -- | -- |
@@ -150,8 +159,10 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 - [ ] Automatic hybrid confidentiality classification + override audit -- section 12
 - [ ] Deterministic standards-resolution service (8-level hierarchy) -- section 11
 - [ ] Decision Brief generation + approval chain -- section 15
-- [ ] Multi-turn per-document chat (current Ask is single-shot) -- section 17.5
-- [ ] Read-only document metadata in tabs (currently editable-but-prefilled) -- section 17.2
+- [ ] Multi-turn per-document chat (current Ask is still single-shot per thread) -- section 17.5
+- [x] Read-only document metadata in tabs -- fixed Phase 3, fields go read-only once currentDocument has a value, revert to editable+cleared on "Change document"
+- [x] Document context survives refresh -- fixed Phase 3, persisted via ?document=<id> URL param + localStorage
+- [x] Universal document header -- fixed Phase 3, shown on every view
 - [ ] Standards administration UI -- section 18
 - [ ] Full evaluation framework: clause/risk/confidentiality/retrieval/RAGAS metrics -- sections 20-28
 - [x] Swagger docs not gated by environment -- fixed Phase 2, ENVIRONMENT=production disables /docs,/redoc,/openapi.json
@@ -161,8 +172,8 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 - [ ] Podman migration for deployment target (user-requested deviation from Docker-only wording)
 
 ## Next Exact Actions
-1. Commit Phase 2 (docs gating + profile menu + risk-flag role enforcement + tests) as a clean phase commit, pending user confirmation to commit.
-2. Begin Phase 3 (Document-centric frontend): verify/fix the currentDocument shared-state mechanism, make document metadata read-only in tabs instead of editable-but-prefilled, add the universal document header.
+1. Commit Phase 3 (document header, URL/localStorage persistence, read-only fields, stale-result cleanup) as a clean phase commit, pending user confirmation to commit.
+2. Begin Phase 4 (Automatic confidentiality): add the classification migration/fields, hybrid deterministic+Gemini classifier, human override + audit trail, UI badge/history.
 3. User-to-organization assignment is still an open gap (reviewer roster has roles but no org scope) -- revisit when Phase 5 (tenant-filtered RAG) needs real cross-org isolation to test against, since there's still only one customer/no real cross-org scenario to enforce today.
 
 ## Commands That Last Passed

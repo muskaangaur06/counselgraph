@@ -172,6 +172,29 @@
   }
   .profile-dropdown-item:hover { background: var(--surface-2); }
 
+  .doc-header {
+    display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--surface-1);
+    border-bottom: 1px solid var(--rule); font-family: var(--sans);
+  }
+  .doc-header-main { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .doc-header-name { font-size: 15.4px; font-weight: 700; color: var(--ink); }
+  .doc-header-badge {
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+    padding: 2px 8px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--rule);
+    color: var(--ink-soft);
+  }
+  .doc-header-meta {
+    display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13.4px; color: var(--ink-soft); flex: 1 1 auto;
+  }
+  .doc-header-meta span { white-space: nowrap; }
+  .doc-header-meta b { color: var(--ink); font-weight: 600; }
+  #docHeaderClear { flex-shrink: 0; }
+
+  .field-readonly {
+    font-family: var(--mono); font-size: 15.4px; padding: 5px 8px; border: 1px solid var(--rule);
+    background: var(--surface-1); color: var(--ink-soft); border-radius: 2px; display: inline-block;
+  }
+
   .view { display: none; padding: 30px 40px 70px; }
   .view.active { display: block; }
   .view-inner { max-width: 1200px; margin: 0 auto; }
@@ -395,6 +418,15 @@
     </div>
   </div>
 
+  <div class="doc-header" id="docHeader" style="display:none;">
+    <div class="doc-header-main">
+      <span class="doc-header-name" id="docHeaderName"></span>
+      <span class="doc-header-badge" id="docHeaderStatus"></span>
+    </div>
+    <div class="doc-header-meta" id="docHeaderMeta"></div>
+    <button class="secondary" id="docHeaderClear" type="button">Change document</button>
+  </div>
+
   <!-- 1. UPLOAD WORKSPACE -->
   <div class="view active" id="view-upload">
    <div class="view-inner">
@@ -522,7 +554,6 @@
    <div class="view-inner">
     <div class="doc-title">Review Workspace</div>
     <div class="doc-sub">Executive summary first, then risk flags with deviation scores and confidence breakdowns, then clause-by-clause detail, then a negotiation playbook per flagged clause, then a question box for this document at the very bottom.</div>
-    <div id="currentDocumentIndicator"></div>
 
     <div class="exhibit">
       <span class="exhibit-label">Exhibit A-0 &middot; Lookup</span>
@@ -640,6 +671,20 @@ async function showApp() {
     // a successful login or a successful /me check), so this is just a
     // transient network blip -- leave the "signed in" placeholder in place
   }
+
+  // restore the document context from the URL/localStorage (e.g. after a
+  // refresh, or opening a ?document=<id> link) instead of starting blank
+  renderDocHeader();
+  applyReadOnlyDocumentFields();
+  if (currentDocument.documentId && !currentDocument.docMeta) {
+    try {
+      await loadDocumentDetailInto(currentDocument.documentId, document.getElementById("reviewResult"));
+    } catch (e) {
+      // the stored/URL document_id no longer resolves (deleted, or a stale
+      // link) -- drop the context instead of showing a broken header forever
+      clearCurrentDocument();
+    }
+  }
 }
 
 function showLogin() {
@@ -750,42 +795,136 @@ function clauseBlock(c) {
 
 let ingestThreadId = null;
 
-// Shared client-side document context, set once an ingestion job pauses or
-// completes, and read by the Ask Counsel and Approval & Escalation tabs so a
-// reviewer doesn't have to re-type the same document's identifiers by hand.
-let currentDocument = { jobId: null, documentId: null, collectionName: null, documentName: null };
+// Shared client-side document context: set once an ingestion job pauses or
+// completes, or a document is loaded by ID, and read by every document-scoped
+// tab so a reviewer never re-types the same document's identifiers by hand.
+// Persisted to the URL (?document=<id>) and localStorage so a page refresh (or
+// a link to a specific document) restores the same context instead of losing
+// it -- previously this was an in-memory-only variable.
+const CURRENT_DOCUMENT_STORAGE_KEY = "legal-graphrag-current-document";
 
-function renderCurrentDocumentIndicator() {
-  const el = document.getElementById("currentDocumentIndicator");
-  if (!el) return;
-  if (!currentDocument.documentName && !currentDocument.jobId) {
-    el.innerHTML = "";
+function loadStoredCurrentDocument() {
+  const urlDocumentId = new URLSearchParams(window.location.search).get("document");
+  let stored = {};
+  try {
+    stored = JSON.parse(localStorage.getItem(CURRENT_DOCUMENT_STORAGE_KEY) || "{}");
+  } catch (e) {
+    stored = {};
+  }
+  // the URL is the more explicit signal (e.g. a shared link) -- if it names a
+  // different document than what's cached, the URL wins and the stale cache
+  // for the old document is dropped rather than mixed with the new one
+  if (urlDocumentId && urlDocumentId !== stored.documentId) {
+    return { jobId: null, documentId: urlDocumentId, collectionName: null, documentName: null, docMeta: null };
+  }
+  return {
+    jobId: stored.jobId || null,
+    documentId: stored.documentId || urlDocumentId || null,
+    collectionName: stored.collectionName || null,
+    documentName: stored.documentName || null,
+    docMeta: stored.docMeta || null,
+  };
+}
+
+let currentDocument = loadStoredCurrentDocument();
+
+function persistCurrentDocument() {
+  try {
+    localStorage.setItem(CURRENT_DOCUMENT_STORAGE_KEY, JSON.stringify(currentDocument));
+  } catch (e) {
+    // localStorage can throw in private-browsing/quota-exceeded cases; the
+    // document context still works for the rest of this page load, it just
+    // won't survive a refresh
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (currentDocument.documentId) {
+    params.set("document", currentDocument.documentId);
+  } else {
+    params.delete("document");
+  }
+  const newSearch = params.toString();
+  const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "");
+  history.replaceState(null, "", newUrl);
+}
+
+function confidentialityLabel(level) {
+  return level ? level.replace(/_/g, " ") : null;
+}
+
+function renderDocHeader() {
+  const header = document.getElementById("docHeader");
+  if (!header) return;
+  if (!currentDocument.documentId && !currentDocument.documentName && !currentDocument.jobId) {
+    header.style.display = "none";
     return;
   }
-  el.innerHTML = `
-    <div class="notice info" style="margin-top:0;">
-      Currently viewing: <b>${escapeHtml(currentDocument.documentName || "unnamed document")}</b>
-      ${currentDocument.jobId ? ` &middot; Job ${escapeHtml(currentDocument.jobId)}` : ""}
-    </div>
-  `;
+  header.style.display = "flex";
+  document.getElementById("docHeaderName").textContent = currentDocument.documentName || "Untitled document";
+
+  const meta = currentDocument.docMeta || {};
+  const statusEl = document.getElementById("docHeaderStatus");
+  statusEl.textContent = meta.status || "processing";
+
+  const metaParts = [];
+  if (meta.org_profile_id) metaParts.push(`<span>Org profile <b>${escapeHtml(meta.org_profile_id.slice(0, 8))}</b></span>`);
+  if (meta.counterparty) metaParts.push(`<span>Counterparty <b>${escapeHtml(meta.counterparty)}</b></span>`);
+  if (meta.document_type) metaParts.push(`<span>Type <b>${escapeHtml(meta.document_type)}</b></span>`);
+  const confLabel = confidentialityLabel(meta.confidentiality_level);
+  if (confLabel) metaParts.push(`<span>Confidentiality <b>${escapeHtml(confLabel)}</b></span>`);
+  if (currentDocument.jobId) metaParts.push(`<span>Job <b>${escapeHtml(currentDocument.jobId)}</b></span>`);
+  if (currentDocument.documentId) metaParts.push(`<span>Doc ID <b>${escapeHtml(currentDocument.documentId.slice(0, 8))}</b></span>`);
+  document.getElementById("docHeaderMeta").innerHTML = metaParts.join("");
+}
+
+function applyReadOnlyDocumentFields() {
+  // once a document is selected these fields are read-only display, not
+  // freeform inputs -- changing the selected document is a deliberate action
+  // (the "Change document" button), not an incidental edit to a text box
+  const bindings = [
+    { input: "askCollection", value: currentDocument.collectionName },
+    { input: "auditJobId", value: currentDocument.jobId },
+    { input: "documentDetailId", value: currentDocument.documentId },
+  ];
+  bindings.forEach(({ input, value }) => {
+    const el = document.getElementById(input);
+    if (!el) return;
+    if (value) {
+      el.value = value;
+      el.readOnly = true;
+      el.classList.add("field-readonly");
+    } else {
+      el.value = "";
+      el.readOnly = false;
+      el.classList.remove("field-readonly");
+    }
+  });
 }
 
 function setCurrentDocument(fields) {
   currentDocument = { ...currentDocument, ...fields };
-  renderCurrentDocumentIndicator();
-  const askCollection = document.getElementById("askCollection");
-  if (askCollection && currentDocument.collectionName && !askCollection.value) {
-    askCollection.value = currentDocument.collectionName;
-  }
-  const auditJobId = document.getElementById("auditJobId");
-  if (auditJobId && currentDocument.jobId && !auditJobId.value) {
-    auditJobId.value = currentDocument.jobId;
-  }
-  const documentDetailId = document.getElementById("documentDetailId");
-  if (documentDetailId && currentDocument.documentId && !documentDetailId.value) {
-    documentDetailId.value = currentDocument.documentId;
-  }
+  persistCurrentDocument();
+  renderDocHeader();
+  applyReadOnlyDocumentFields();
 }
+
+function clearCurrentDocument() {
+  currentDocument = { jobId: null, documentId: null, collectionName: null, documentName: null, docMeta: null };
+  persistCurrentDocument();
+  renderDocHeader();
+  applyReadOnlyDocumentFields();
+
+  // drop anything still on screen (and the in-flight thread reference) from
+  // the previous document, so switching documents can't leave a stale answer
+  // or audit result that looks like it belongs to the newly-selected one
+  askThreadId = null;
+  const askResult = document.getElementById("askResult");
+  if (askResult) askResult.innerHTML = "";
+  const auditResult = document.getElementById("auditResult");
+  if (auditResult) auditResult.innerHTML = "";
+  const reviewResult = document.getElementById("reviewResult");
+  if (reviewResult) reviewResult.innerHTML = `<div class="empty-note">Submit a document on the Upload Workspace screen to review it here once the pipeline pauses for approval.</div>`;
+}
+document.getElementById("docHeaderClear").addEventListener("click", clearCurrentDocument);
 
 function renderExecutiveSummary(ctx) {
   if (!ctx || !ctx.executive_summary) return "";
@@ -1243,6 +1382,21 @@ function renderDocumentDetail(doc) {
   return html;
 }
 
+async function loadDocumentDetailInto(documentId, out) {
+  const doc = await apiFetch(`/api/documents/${encodeURIComponent(documentId)}`);
+  setCurrentDocument({
+    documentId: doc.document_id,
+    documentName: doc.filename,
+    jobId: doc.job_id || currentDocument.jobId,
+    docMeta: {
+      status: doc.status, org_profile_id: doc.org_profile_id, counterparty: doc.counterparty,
+      document_type: doc.document_type, confidentiality_level: doc.confidentiality_level,
+    },
+  });
+  if (out) out.innerHTML = renderDocumentDetail(doc);
+  return doc;
+}
+
 document.getElementById("documentDetailSubmit").addEventListener("click", async () => {
   const documentId = document.getElementById("documentDetailId").value.trim() || currentDocument.documentId;
   const out = document.getElementById("reviewResult");
@@ -1251,9 +1405,7 @@ document.getElementById("documentDetailSubmit").addEventListener("click", async 
   btn.disabled = true;
   out.innerHTML = `<div class="empty-note">Loading document detail&hellip;</div>`;
   try {
-    const doc = await apiFetch(`/api/documents/${encodeURIComponent(documentId)}`);
-    setCurrentDocument({ documentId: doc.document_id, documentName: doc.filename, jobId: doc.job_id || currentDocument.jobId });
-    out.innerHTML = renderDocumentDetail(doc);
+    await loadDocumentDetailInto(documentId, out);
   } catch (e) {
     out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
   } finally {
