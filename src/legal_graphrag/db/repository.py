@@ -157,6 +157,15 @@ def upsert_clause(document_id: str, clause_type: Optional[str], extracted_text: 
         return clause.clause_id, True
 
 
+def get_risk_flag(risk_flag_id: str) -> Optional[dict]:
+    with get_session() as session:
+        flag = session.get(RiskFlag, risk_flag_id)
+        if flag is None:
+            return None
+        return {"risk_flag_id": flag.risk_flag_id, "clause_id": flag.clause_id,
+                "assigned_role": flag.assigned_role, "reviewer_status": flag.reviewer_status}
+
+
 def create_risk_flag(clause_id: str, severity: str, rationale: Optional[str] = None,
                       confidence: Optional[float] = None, recommended_action: Optional[str] = None,
                       deviation_score: Optional[float] = None, deviation_detail: Optional[dict] = None,

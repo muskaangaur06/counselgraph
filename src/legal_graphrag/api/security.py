@@ -39,6 +39,19 @@ RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 
 VALID_ROLES = ("admin", "reviewer", "senior_counsel")
 
+# Risk-based routing (langgraph_agent.py's _resolve_assigned_role) assigns
+# high-severity/low-confidence risk flags to senior_counsel instead of the
+# default reviewer role. This is the seniority a role needs to act on a flag
+# assigned to a given role -- admin can always act on anything, senior_counsel
+# can act on its own queue and the reviewer queue, reviewer only its own.
+_ROLE_SENIORITY = {"reviewer": 0, "senior_counsel": 1, "admin": 2}
+
+
+def can_act_on_assigned_role(actor_role: str, assigned_role: str) -> bool:
+    """True if a user with actor_role is senior enough to act on a risk flag
+    (or anything else) assigned_role-routed to assigned_role."""
+    return _ROLE_SENIORITY.get(actor_role, -1) >= _ROLE_SENIORITY.get(assigned_role, 0)
+
 
 @dataclass(frozen=True)
 class Reviewer:

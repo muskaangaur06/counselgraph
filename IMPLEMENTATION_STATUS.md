@@ -3,8 +3,8 @@
 ## Repository
 - Path: D:\LegalAssistant
 - Branch: main
-- Latest commit: eefe70a (Add project control files), 2 commits ahead of origin/main, not pushed
-- Working tree: clean
+- Latest commit: 7f39083 (Add tenancy schema), 3 commits ahead of origin/main, not pushed. Phase 2 changes below not committed yet.
+- Working tree: modified, see Phase 2 files below
 - Last updated: 2026-08-12
 
 ## Environment
@@ -47,11 +47,18 @@
 | API healthcheck | Missing | docker-compose.yml has healthchecks for postgres/neo4j/minio but not for `api` service | Blueprint 32.2 gap |
 
 ## Current Phase
-- Phase: 1 (Architecture and migration audit) -- COMPLETE
-- Objective: Add Customer/Organization/BusinessUnit/Jurisdiction tenancy model without breaking any of the 15+ existing call sites keyed on org_profile_id
-- Files changed: src/legal_graphrag/db/models.py (Customer, Jurisdiction, BusinessUnit models; customer_id/industry_sector/default_risk_tolerance/is_active added to OrgProfile), src/legal_graphrag/db/session.py (idempotent _add_missing_columns() column retrofit, seed_defaults()), src/legal_graphrag/api/main.py (calls seed_defaults() in lifespan), tests/test_tenancy_migration.py (new, 5 tests)
-- Focused tests: tests/test_tenancy_migration.py (5 passed); full fast suite (24 passed, tests/eval and test_integration_ingestion.py excluded -- both require live GEMINI_API_KEY/reachable Neo4j from host, pre-existing environment gap not caused by this phase)
+- Phase: 2 (Auth, profile, and access control) -- COMPLETE
+- Objective: gate Swagger/docs by environment, add a real signed-in profile menu, centralize a permission check, add negative authorization tests
+- Files changed: src/legal_graphrag/api/main.py (docs_url/redoc_url/openapi_url gated by ENVIRONMENT; /api/review-actions now enforces can_act_on_assigned_role), src/legal_graphrag/api/security.py (VALID_ROLES seniority mapping + can_act_on_assigned_role()), src/legal_graphrag/db/repository.py (get_risk_flag()), src/legal_graphrag/api/static/index.html (profile dropdown replacing the static "signed in" label + bare logout button), tests/test_review_action_authorization.py (new, 7 tests)
+- Focused tests: tests/test_review_action_authorization.py (7 passed); full fast suite (31 passed)
 - Blockers: none
+
+## Phase 2 Decisions
+- No public registration existed to remove (verified: no register routes/forms anywhere; "register open"/"Register of Legal Documents" in the UI is courthouse-docket theming, not a signup feature). Section 16.1 was already compliant.
+- Did NOT build a general-purpose permission-mapping framework speculatively. Audited the codebase for actual role-based logic first: found exactly one real candidate -- RiskFlag.assigned_role (langgraph_agent.py's risk-based routing to senior_counsel for high-severity/low-confidence flags) was never enforced at the API layer, so any reviewer could act on a senior_counsel-routed flag. Fixed that specific gap with a small role-seniority helper (can_act_on_assigned_role in security.py) rather than inventing a broader system with no other consumer yet.
+- Swagger gating: added ENVIRONMENT env var (default "development", matching .env.example's absence of it), FastAPI() now passes docs_url=None/redoc_url=None/openapi_url=None when ENVIRONMENT=="production". Verified /docs still returns 200 by default (dev) and left unset in .env/docker-compose.yml -- explicit production deployment (Phase 12) will need to set ENVIRONMENT=production.
+- Profile dropdown reuses GET /api/auth/me (already returned {username, role}) and the existing POST /api/auth/logout -- no new backend endpoint needed. Verified visually with a scripted Playwright run against the live container: login -> avatar/name/role render correctly -> dropdown opens -> logout returns to the login screen.
+- Discovered while testing: TestClient(app) picks up the repo's real .env, whose NEO4J_URI points at the container-only "neo4j" hostname -- any test that boots the full app without unsetting it hangs for ~700s on DNS-retry backoff (same root cause as the Phase 0 baseline failures). New tests unset NEO4J_URI and mock out preload_models() (the embedder/reranker aren't needed for auth tests, and loading them hit a Windows "paging file too small" OSError on this host).
 
 ## Phase 1 Decisions
 - org_profile IS the "Organization" from the blueprint (e.g. "Vendor Procurement Unit" is an Organization under Tata Group), not a new Business Unit layer. Chosen because org_profile_id is referenced by 15+ call sites (extraction.py, deviation.py, playbook.py, repository.py, langgraph_agent.py) -- this mapping required zero changes to any of them.
@@ -65,7 +72,8 @@
 | Phase | Status | Commit | Tests | Notes |
 |---|---|---|---|---|
 | 0 | Complete | ab1ae7e, eefe70a | 22 passed, 2 failed / 24 total, 728s | Failures: neo4j DNS resolution from host process, not an app bug. See Environment Constraint below. |
-| 1 | Complete | pending (this phase not yet committed) | 24 passed (19 pre-existing + 5 new tenancy tests), verified against live Postgres too | Customer/Jurisdiction/BusinessUnit tables added, org_profile backfilled. See Phase 1 Decisions above. |
+| 1 | Complete | 7f39083 | 24 passed (19 pre-existing + 5 new tenancy tests), verified against live Postgres too | Customer/Jurisdiction/BusinessUnit tables added, org_profile backfilled. See Phase 1 Decisions above. |
+| 2 | Complete | pending (this phase not yet committed) | 31 passed (24 pre-existing + 7 new authorization tests); verified against live Docker container (rebuild + health check + /docs 200 + Playwright login/dropdown/logout screenshots) | Swagger env-gated, profile dropdown, senior_counsel routing enforced. See Phase 2 Decisions above. |
 
 ## Committed Changes (pre-existing at session start, reviewed then committed)
 Reviewed via `git diff`, not discarded, committed as ab1ae7e "Fix document context threading":
@@ -107,7 +115,7 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 | GET /api/dashboard/stats | Existing | Working | session | |
 | GET /api/org-profiles | Existing | Working | session | |
 | GET /api/documents/{id} | Existing | Working | session | |
-| POST /api/review-actions | Existing | Working | session | |
+| POST /api/review-actions | Existing, enhanced | Working, now enforces role seniority vs. risk_flag.assigned_role | session + role check | tests/test_review_action_authorization.py |
 | GET/POST /api/documents/{id}/summary | Existing | Working | session | |
 | GET /api/portfolio/conflicts | Existing | Working | session | |
 | GET /api/eval/summary, POST /api/eval/refresh | Existing (uncommitted) | Working per code review | session | not yet independently tested |
@@ -146,21 +154,24 @@ New tables (Phase 1): customer, jurisdiction, business_unit (schema-only, no row
 - [ ] Read-only document metadata in tabs (currently editable-but-prefilled) -- section 17.2
 - [ ] Standards administration UI -- section 18
 - [ ] Full evaluation framework: clause/risk/confidentiality/retrieval/RAGAS metrics -- sections 20-28
-- [ ] Swagger docs not gated by environment -- section 6.1
+- [x] Swagger docs not gated by environment -- fixed Phase 2, ENVIRONMENT=production disables /docs,/redoc,/openapi.json
+- [x] Signed-in profile menu -- fixed Phase 2, replaces static "signed in" label + bare logout button
+- [ ] User-to-organization/business-unit assignment (reviewer roster has roles but no org scope) -- needed before real cross-org access control is possible
 - [ ] Non-root Docker user, api healthcheck -- section 32
 - [ ] Podman migration for deployment target (user-requested deviation from Docker-only wording)
 
 ## Next Exact Actions
-1. Commit Phase 1 (tenancy models + session.py migration/seed helpers + tests) as a clean phase commit, pending user confirmation to commit.
-2. Begin Phase 2 (Auth, profile, and access control): gate Swagger/docs by environment, centralize permission checks, add negative authorization tests.
-3. Decide whether Phase 2 or Phase 5 is where org-to-user access scoping first gets wired in (currently no user-to-organization mapping exists at all -- the reviewer roster has roles but no org assignment).
+1. Commit Phase 2 (docs gating + profile menu + risk-flag role enforcement + tests) as a clean phase commit, pending user confirmation to commit.
+2. Begin Phase 3 (Document-centric frontend): verify/fix the currentDocument shared-state mechanism, make document metadata read-only in tabs instead of editable-but-prefilled, add the universal document header.
+3. User-to-organization assignment is still an open gap (reviewer roster has roles but no org scope) -- revisit when Phase 5 (tenant-filtered RAG) needs real cross-org isolation to test against, since there's still only one customer/no real cross-org scenario to enforce today.
 
 ## Commands That Last Passed
 ```bash
 cd D:\LegalAssistant
 .venv/Scripts/python.exe -m pip check   # clean, 175 packages
 .venv/Scripts/python.exe -c "import torch; print(torch.__version__, torch.cuda.is_available())"  # 2.13.0+cpu, False
-.venv/Scripts/python.exe -m pytest tests/ -q --ignore=tests/eval --ignore=tests/test_integration_ingestion.py   # 24 passed
-docker compose build api && docker compose up -d api   # rebuilds image with schema changes, seed_defaults() runs on startup
+.venv/Scripts/python.exe -m pytest tests/ -q --ignore=tests/eval --ignore=tests/test_integration_ingestion.py   # 31 passed
+docker compose build api && docker compose up -d api   # rebuilds image with schema+auth changes, seed_defaults() runs on startup
 docker ps -a   # postgres, neo4j, minio, api all healthy/running
+curl http://localhost:8000/docs   # 200 by default (ENVIRONMENT unset = development)
 ```

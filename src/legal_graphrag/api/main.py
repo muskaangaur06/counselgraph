@@ -113,7 +113,19 @@ async def lifespan(app: FastAPI):
     close_store()
 
 
-app = FastAPI(title="Legal GraphRAG API", version="0.2.0", lifespan=lifespan)
+# Swagger/ReDoc/OpenAPI are development conveniences, not part of the shipped
+# product (see MASTER_BLUEPRINT.md section 6.1) -- disabled whenever
+# ENVIRONMENT=production so they aren't reachable in a real deployment.
+_IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
+
+app = FastAPI(
+    title="Legal GraphRAG API",
+    version="0.2.0",
+    lifespan=lifespan,
+    docs_url=None if _IS_PRODUCTION else "/docs",
+    redoc_url=None if _IS_PRODUCTION else "/redoc",
+    openapi_url=None if _IS_PRODUCTION else "/openapi.json",
+)
 
 # CORS only matters if you're serving the frontend from a different origin
 # than this API (the bundled UI is same-origin so it doesn't need this).
@@ -518,7 +530,20 @@ class ReviewActionRequest(BaseModel):
 
 @app.post("/api/review-actions", dependencies=[Depends(require_session)])
 async def create_review_action(body: ReviewActionRequest, reviewer: dict = Depends(get_current_reviewer)) -> dict:
-    from ..db.repository import record_review_action
+    from ..db.repository import get_risk_flag, record_review_action
+    from .security import can_act_on_assigned_role
+
+    if body.risk_flag_id:
+        flag = get_risk_flag(body.risk_flag_id)
+        if flag is None:
+            raise HTTPException(status_code=404, detail=f"No risk flag found for risk_flag_id={body.risk_flag_id}")
+        if not can_act_on_assigned_role(reviewer["role"], flag["assigned_role"]):
+            raise HTTPException(
+                status_code=403,
+                detail=f"This risk flag is routed to {flag['assigned_role']}; your role ({reviewer['role']}) "
+                       f"isn't senior enough to act on it.",
+            )
+
     review_action_id = record_review_action(
         reviewer_username=reviewer["username"], role=reviewer["role"], action=body.action,
         rationale=body.rationale, document_id=body.document_id, clause_id=body.clause_id,
