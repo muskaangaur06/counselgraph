@@ -71,6 +71,7 @@ def start_job_node(state: IngestionState) -> dict:
     full_text = " ".join(c["text"] for c in state["text_chunks"])
     contract_metadata = extract_contract_metadata(full_text)
     document_context = format_executive_summary(state["document_name"], job_id, contract_metadata)
+    document_context["document_id"] = state.get("document_id")
 
     for party in document_context["parties"]:
         if party.get("name"):
@@ -78,6 +79,22 @@ def start_job_node(state: IngestionState) -> dict:
     store.set_contract_subject_matter(contract_id, document_context.get("subject_matter"))
 
     store.write_audit_record(job_id, "system", "job_started", f"document={state['document_name']}")
+
+    # Generate the reviewer-facing executive summary once, here, during ingestion
+    # rather than on-demand: guideline 5's "executive summary first" requirement
+    # means a reviewer should never have to ask a question just to see one, and
+    # generating it once at ingestion time (instead of on every later fetch) avoids
+    # re-paying an LLM call each time the document is revisited.
+    executive_summary = None
+    try:
+        from ..retrieval.contract_metadata import generate_document_summary
+        executive_summary = generate_document_summary(full_text)
+        if state.get("document_id"):
+            from ..db.repository import add_summary_version
+            add_summary_version(state["document_id"], executive_summary, edited_by=None)
+    except Exception as e:  # noqa: BLE001
+        print(f"[start_job] WARNING: executive summary generation failed: {type(e).__name__}: {e}")
+    document_context["executive_summary"] = executive_summary
 
     print(f"[start_job] job_id={job_id} contract_id={contract_id}")
     if document_context.get("subject_matter"):
@@ -409,7 +426,7 @@ def apply_decision_node(state: IngestionState) -> dict:
             print(f"[apply_decision] WARNING: Postgres review_action/audit_log write failed: {type(e).__name__}: {e}")
 
     print(f"[apply_decision] job {state['job_id']} -> {action} by {reviewer}")
-    return {"status": f"{action}d" if action != "approve" else "approved"}
+    return {"status": f"{action}d" if action != "approve" else "approved", "document_id": state.get("document_id")}
 
 
 def build_ingestion_graph():

@@ -66,6 +66,11 @@ UPLOAD_DIR = Path(__file__).resolve().parents[3] / "data" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
+# Cached eval results (tests/eval/run_eval.py's scoring is a live Gemini eval
+# against the labeled set, too slow/costly to run on every dashboard load, so
+# a manual refresh writes the result here and GET just reads the cache).
+EVAL_CACHE_PATH = Path(__file__).resolve().parents[3] / "data" / "eval_cache" / "eval_summary.json"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -126,18 +131,26 @@ def _jsonable(obj: Any) -> Any:
     return json.loads(json.dumps(obj, default=str))
 
 
-def _build_job_response(thread_id: str, result: dict) -> JobResponse:
-    """Checks whether the graph result is paused at an interrupt() or ran to completion."""
+def _build_job_response(thread_id: str, result: dict, document_context: dict | None = None) -> JobResponse:
+    """Checks whether the graph result is paused at an interrupt() or ran to completion.
+    document_context (document_name/collection_name/document_id) is known by the caller
+    before the graph runs, and isn't part of the interrupt payload itself, so it's merged
+    in here for both the paused and completed shapes."""
     interrupts = result.get("__interrupt__")
     if interrupts:
         payload = _jsonable(interrupts[0].value)
+        if document_context:
+            payload["document_context"] = {**document_context, **payload.get("document_context", {})}
         return JobResponse(
             thread_id=thread_id,
             state="paused",
             checkpoint=payload.get("type"),
             payload=payload,
         )
-    return JobResponse(thread_id=thread_id, state="completed", result=_jsonable(result))
+    result_out = _jsonable(result)
+    if document_context:
+        result_out["document_context"] = {**document_context, **result_out.get("document_context", {})}
+    return JobResponse(thread_id=thread_id, state="completed", result=result_out)
 
 
 def _run_graph_safely(fn, *args, **kwargs):
@@ -321,17 +334,34 @@ async def start_ingestion_job(
         except Exception as e:  # noqa: BLE001
             print(f"WARNING: Postgres document row update failed: {type(e).__name__}: {e}")
 
-    return _build_job_response(thread_id, result)
+    return _build_job_response(
+        thread_id,
+        result,
+        document_context={
+            "document_name": document_name,
+            "collection_name": resolved_collection_name,
+            "document_id": pg_document_id,
+        },
+    )
 
 
 @app.post("/api/ingestion/jobs/{thread_id}/resume", response_model=JobResponse, dependencies=[Depends(require_session), Depends(rate_limit)])
 async def resume_ingestion_job(thread_id: str, body: ResumeRequest) -> JobResponse:
     _validate_decision_comments(body.decision)
     config = {"configurable": {"thread_id": thread_id}}
+    snapshot_before = app.state.ingestion_graph.get_state(config)
     result = _run_graph_safely(
         app.state.ingestion_graph.invoke, Command(resume=body.decision), config=config
     )
-    return _build_job_response(thread_id, result)
+    prior_values = snapshot_before.values if snapshot_before else {}
+    return _build_job_response(
+        thread_id,
+        result,
+        document_context={
+            "document_name": prior_values.get("document_name"),
+            "document_id": prior_values.get("document_id"),
+        },
+    )
 
 
 @app.get("/api/ingestion/jobs/{thread_id}", dependencies=[Depends(require_session)])
@@ -435,6 +465,10 @@ async def get_document_detail(document_id: str) -> dict:
         if doc is None:
             raise HTTPException(status_code=404, detail=f"No document found for document_id={document_id}")
 
+        from ..db.repository import get_summary_history
+        summary_versions = get_summary_history(document_id)
+        executive_summary = summary_versions[0]["summary_text"] if summary_versions else None
+
         clauses = session.execute(select(Clause).where(Clause.document_id == document_id)).scalars().all()
         clause_payload = []
         for c in clauses:
@@ -469,6 +503,7 @@ async def get_document_detail(document_id: str) -> dict:
             "confidentiality_level": doc.confidentiality_level, "review_priority": doc.review_priority,
             "org_profile_id": doc.org_profile_id, "status": doc.status, "job_id": doc.job_id,
             "contract_id": doc.contract_id, "clauses": clause_payload,
+            "executive_summary": executive_summary,
         })
 
 
@@ -536,6 +571,62 @@ async def get_portfolio_conflicts(org_profile_id: str | None = None, counterpart
     clause_rows = store.find_same_type_clauses_across_contracts(contract_ids)
     conflicts = find_conflicting_clause_pairs(clause_rows)
     return _jsonable({"conflicts": conflicts, "documents_compared": len(contract_ids)})
+
+
+# evaluation matrix: clause recall / risk-flag precision / missing-clause accuracy
+# against the labeled eval set (tests/eval/run_eval.py), for the Operations Dashboard.
+def _summarize_eval_results(results: list[dict]) -> dict:
+    scored_recalls = [r["clause_recall"] for r in results if r["clause_recall"] is not None]
+    avg_recall = sum(scored_recalls) / len(scored_recalls) if scored_recalls else None
+    avg_precision = sum(r["risk_precision"] for r in results) / len(results) if results else None
+    missing_correct = sum(1 for r in results if r["missing_clause_detection_correct"])
+    avg_missing_accuracy = missing_correct / len(results) if results else None
+    return {
+        "documents": [
+            {
+                "filename": r["filename"],
+                "clause_recall": r["clause_recall"],
+                "risk_precision": r["risk_precision"],
+                "missing_clause_detection_correct": r["missing_clause_detection_correct"],
+            }
+            for r in results
+        ],
+        "average_clause_recall": avg_recall,
+        "average_risk_precision": avg_precision,
+        "average_missing_clause_accuracy": avg_missing_accuracy,
+    }
+
+
+@app.get("/api/eval/summary", dependencies=[Depends(require_session)])
+async def get_eval_summary() -> dict:
+    """Reads the cached eval run written by /api/eval/refresh. Returns a note
+    (not a 404) when no cache exists yet, so the dashboard can render an
+    explanatory empty state instead of an error."""
+    if not EVAL_CACHE_PATH.exists():
+        return {"computed": False, "note": "No eval run cached yet. Trigger a refresh to compute one."}
+    cached = json.loads(EVAL_CACHE_PATH.read_text(encoding="utf-8"))
+    return {"computed": True, **cached}
+
+
+@app.post("/api/eval/refresh", dependencies=[Depends(require_session)])
+async def refresh_eval_summary() -> dict:
+    """Runs the real eval (live Gemini calls against tests/eval/labeled_eval_set.json,
+    can take a couple minutes) and caches the summary to disk. Manual trigger only,
+    not run automatically, since it's slow and costs LLM calls."""
+    import sys
+    eval_dir = str(Path(__file__).resolve().parents[3] / "tests" / "eval")
+    if eval_dir not in sys.path:
+        sys.path.insert(0, eval_dir)
+    try:
+        from run_eval import main as run_eval_main
+        results = run_eval_main()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Eval run failed: {type(e).__name__}: {e}") from e
+
+    summary = _summarize_eval_results(results)
+    EVAL_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    EVAL_CACHE_PATH.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return {"computed": True, **summary}
 
 
 @app.get("/health")

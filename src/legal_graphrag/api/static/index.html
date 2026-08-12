@@ -27,6 +27,57 @@
     --mono: "Courier New", Consolas, monospace;
     --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
     --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    --folio-bg: #191510;
+    --masthead-bg: #241a17;
+    --heading-ink: #f4efe4;
+    --surface-1: rgba(255,255,255,0.05);
+    --surface-2: rgba(0,0,0,0.2);
+    --surface-3: rgba(255,255,255,0.03);
+    --field-bg: #14100c;
+    --exhibit-bg: #201812;
+    --button-ink: #fbf3ec;
+    --button-hover: #a03b31;
+    --spinner-track: rgba(251,243,236,0.35);
+    --raw-bg: rgba(0,0,0,0.35);
+    --raw-ink: #e0d6bc;
+    --select-ink: #fff;
+  }
+
+  html[data-theme="light"] {
+    --bg-deep: #ece3d0;
+    --paper: rgba(20,15,10,0.035);
+    --paper-2: rgba(20,15,10,0.05);
+    --paper-line: rgba(59,45,31,0.1);
+    --ink: #2c2115;
+    --ink-soft: rgba(44,33,21,0.62);
+    --ink-faint: rgba(44,33,21,0.4);
+    --rule: rgba(59,45,31,0.2);
+    --maroon: #8f342a;
+    --maroon-bright: #7a2b22;
+    --maroon-soft: rgba(143,52,42,0.12);
+    --maroon-border: rgba(143,52,42,0.4);
+    --olive: #3f6b3f;
+    --olive-soft: rgba(63,107,63,0.12);
+    --olive-border: rgba(63,107,63,0.38);
+    --ochre: #8a5f14;
+    --ochre-soft: rgba(138,95,20,0.13);
+    --ochre-border: rgba(138,95,20,0.38);
+
+    --folio-bg: #f2ead9;
+    --masthead-bg: #e3d5bb;
+    --heading-ink: #1f170e;
+    --surface-1: rgba(20,15,10,0.05);
+    --surface-2: rgba(20,15,10,0.06);
+    --surface-3: rgba(20,15,10,0.04);
+    --field-bg: #fbf6ea;
+    --exhibit-bg: #f7f0e1;
+    --button-ink: #fbf3ec;
+    --button-hover: #7a2b22;
+    --spinner-track: rgba(251,243,236,0.5);
+    --raw-bg: rgba(44,33,21,0.06);
+    --raw-ink: #3b2d1f;
+    --select-ink: #1f170e;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; overflow-x: hidden; }
@@ -38,26 +89,33 @@
 
   .folio {
     width: 100%; min-height: 100vh;
-    background: #191510;
+    background: var(--folio-bg);
   }
 
   /* masthead */
   .masthead {
-    background: #241a17;
+    background: var(--masthead-bg);
     color: var(--ink); padding: 22px 36px; display: flex; justify-content: space-between; align-items: baseline;
     border-bottom: 1px solid var(--rule);
   }
   .masthead .title-block { display: flex; align-items: baseline; gap: 14px; }
-  .masthead h1 { font-size: 28.2px; font-weight: 400; margin: 0; letter-spacing: 0.01em; color: #f4efe4; }
+  .masthead h1 { font-size: 28.2px; font-weight: 400; margin: 0; letter-spacing: 0.01em; color: var(--heading-ink); }
   .masthead .matter-no {
     font-family: var(--mono); font-size: 14.1px; letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--ink-soft);
   }
   .masthead .status-pill {
     font-family: var(--sans); font-size: 14.1px; font-weight: 600; padding: 4px 12px; border-radius: 2px;
-    background: rgba(255,255,255,0.05); border: 1px solid var(--rule);
+    background: var(--surface-1); border: 1px solid var(--rule);
     display: inline-flex; align-items: center; gap: 6px; color: var(--ink-soft);
   }
+  .theme-toggle {
+    font-family: var(--sans); font-size: 13.4px; font-weight: 600; padding: 4px 12px; border-radius: 2px;
+    background: var(--surface-1); border: 1px solid var(--rule); color: var(--ink-soft); cursor: pointer;
+    margin-left: 14px;
+  }
+  .theme-toggle:hover { color: var(--ink); background: var(--surface-2); }
+  .login-card .theme-toggle { position: absolute; top: 18px; right: 18px; }
   .masthead .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--maroon-bright); }
   .masthead .status-pill.online { background: var(--olive-soft); border-color: var(--olive-border); color: var(--olive); }
   .masthead .status-pill.online .dot { background: var(--olive); }
@@ -81,19 +139,19 @@
   }
   .apikey-row input {
     font-family: var(--mono); font-size: 15.4px; padding: 5px 8px; border: 1px solid var(--rule);
-    background: rgba(0,0,0,0.2); color: var(--ink); border-radius: 2px; width: 320px; max-width: 100%; flex: 0 0 auto;
+    background: var(--surface-2); color: var(--ink); border-radius: 2px; width: 320px; max-width: 100%; flex: 0 0 auto;
   }
 
   .view { display: none; padding: 30px 40px 70px; }
   .view.active { display: block; }
   .view-inner { max-width: 1200px; margin: 0 auto; }
 
-  .doc-title { font-size: 33.3px; font-weight: 400; margin: 0 0 4px; text-wrap: balance; color: #f4efe4; }
+  .doc-title { font-size: 33.3px; font-weight: 400; margin: 0 0 4px; text-wrap: balance; color: var(--heading-ink); }
   .doc-sub { font-family: var(--sans); font-size: 16px; color: var(--ink-soft); margin: 0 0 26px; max-width: 620px; line-height: 1.6; }
 
   /* exhibit / section blocks */
   .exhibit {
-    background: #201812; border: 1px solid var(--rule); padding: 20px 24px;
+    background: var(--exhibit-bg); border: 1px solid var(--rule); padding: 20px 24px;
     margin-bottom: 18px; position: relative;
   }
   .exhibit-label {
@@ -112,14 +170,14 @@
   label.field-label.first { margin-top: 0; }
   input[type=text], input[type=password], input[type=file], textarea, select {
     width: 100%; padding: 9px 11px; border: 1px solid var(--rule); border-radius: 2px;
-    font-size: 17.3px; font-family: var(--sans); background: #14100c; color: var(--ink);
+    font-size: 17.3px; font-family: var(--sans); background: var(--field-bg); color: var(--ink);
   }
   input[type=text]::placeholder, input[type=password]::placeholder, textarea::placeholder { color: var(--ink-faint); }
   input[type=text]:focus, input[type=password]:focus, textarea:focus, select:focus {
     outline: none; border-color: var(--maroon); box-shadow: 0 0 0 3px var(--maroon-soft);
   }
   input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
-    -webkit-box-shadow: 0 0 0 1000px #14100c inset;
+    -webkit-box-shadow: 0 0 0 1000px var(--field-bg) inset;
     -webkit-text-fill-color: var(--ink);
     caret-color: var(--ink);
   }
@@ -130,19 +188,19 @@
   button {
     font-family: var(--sans);
     background: var(--maroon);
-    color: #fbf3ec; border: 1px solid var(--maroon-border);
+    color: var(--button-ink); border: 1px solid var(--maroon-border);
     padding: 10px 20px; border-radius: 2px; font-size: 16.6px; font-weight: 700; cursor: pointer;
     letter-spacing: 0.02em;
   }
-  button:hover { background: #a03b31; }
+  button:hover { background: var(--button-hover); }
   button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
-  button.secondary:hover { background: rgba(255,255,255,0.05); }
+  button.secondary:hover { background: var(--surface-1); }
   button:disabled { opacity: 0.45; cursor: not-allowed; }
   .btn-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 
   .spinner {
-    display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(251,243,236,0.35);
-    border-top-color: #fbf3ec; border-radius: 50%; animation: spin 0.7s linear infinite;
+    display: inline-block; width: 12px; height: 12px; border: 2px solid var(--spinner-track);
+    border-top-color: var(--button-ink); border-radius: 50%; animation: spin 0.7s linear infinite;
     margin-right: 7px; vertical-align: -1px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -151,7 +209,7 @@
   .ruled-text {
     font-size: 18.6px; line-height: 28px; color: var(--ink);
     border-left: 3px solid var(--maroon); padding: 0 0 0 16px; margin-top: 10px;
-    background-image: repeating-linear-gradient(rgba(255,255,255,0.01), rgba(255,255,255,0.01) 27px, var(--paper-line) 28px);
+    background-image: repeating-linear-gradient(var(--surface-3), var(--surface-3) 27px, var(--paper-line) 28px);
     white-space: pre-wrap;
   }
   .clause-meta {
@@ -168,7 +226,7 @@
   .stamp.medium { background: var(--ochre-soft); color: var(--ochre); border: 1px solid var(--ochre-border); }
   .stamp.low { background: var(--olive-soft); color: var(--olive); border: 1px solid var(--olive-border); }
   .stamp.gap { background: var(--ochre-soft); color: var(--ochre); border: 1px solid var(--ochre-border); }
-  .stamp.neutral { background: rgba(255,255,255,0.05); color: var(--ink-soft); border: 1px solid var(--rule); }
+  .stamp.neutral { background: var(--surface-1); color: var(--ink-soft); border: 1px solid var(--rule); }
 
   /* side annotation panel, evokes a margin note */
   .annotation-row { display: flex; gap: 22px; }
@@ -182,7 +240,7 @@
   /* docket / summary tiles */
   .docket-strip {
     display: flex; font-family: var(--sans); border: 1px solid var(--rule); border-radius: 2px;
-    margin-bottom: 22px; background: rgba(255,255,255,0.03); overflow: hidden;
+    margin-bottom: 22px; background: var(--surface-3); overflow: hidden;
   }
   .docket-item {
     flex: 1; padding: 14px 18px; border-right: 1px solid var(--paper-line); text-align: left;
@@ -198,7 +256,7 @@
   .final-answer { white-space: pre-wrap; line-height: 1.75; font-size: 19.2px; font-family: var(--serif); color: var(--ink); }
 
   pre.raw {
-    background: rgba(0,0,0,0.35); color: #e0d6bc; padding: 14px; border-radius: 2px; overflow-x: auto;
+    background: var(--raw-bg); color: var(--raw-ink); padding: 14px; border-radius: 2px; overflow-x: auto;
     font-size: 14.7px; line-height: 1.55; max-height: 320px; font-family: var(--mono); border: 1px solid var(--rule);
   }
   details summary { cursor: pointer; font-family: var(--sans); font-size: 14.7px; color: var(--ink-soft); }
@@ -222,7 +280,7 @@
   .docket-log-action { font-family: var(--sans); font-size: 16.6px; font-weight: 700; color: var(--ink); }
   .docket-log-details { font-family: var(--sans); font-size: 15.4px; color: var(--ink-soft); margin-top: 3px; }
 
-  ::selection { background: rgba(179,69,58,0.35); color: #fff; }
+  ::selection { background: var(--maroon-border); color: var(--select-ink); }
 
   @media (max-width: 760px) {
     .masthead { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -237,10 +295,10 @@
     background: var(--bg-deep);
   }
   .login-card {
-    width: 100%; max-width: 380px; background: #201812; border: 1px solid var(--rule);
-    padding: 32px 30px;
+    width: 100%; max-width: 380px; background: var(--exhibit-bg); border: 1px solid var(--rule);
+    padding: 32px 30px; position: relative;
   }
-  .login-card h1 { font-size: 24px; font-weight: 400; margin: 0 0 6px; color: #f4efe4; }
+  .login-card h1 { font-size: 24px; font-weight: 400; margin: 0 0 6px; color: var(--heading-ink); }
   .login-card .sub { font-family: var(--sans); font-size: 14px; color: var(--ink-soft); margin-bottom: 22px; }
   .login-card label.field-label { margin: 12px 0 6px; }
   .login-card label.field-label.first { margin-top: 0; }
@@ -262,6 +320,7 @@
     <div class="btn-row">
       <button id="loginSubmit" style="width:100%;">Sign In</button>
     </div>
+    <button class="secondary theme-toggle" id="themeToggleLogin" type="button">Light</button>
   </div>
 </div>
 
@@ -271,7 +330,10 @@
       <h1>Register of Legal Documents</h1>
       <span class="matter-no">Legal GraphRAG</span>
     </div>
-    <div class="status-pill" id="healthPill"><span class="dot"></span><span id="healthText">checking&hellip;</span></div>
+    <div style="display:flex; align-items:center;">
+      <div class="status-pill" id="healthPill"><span class="dot"></span><span id="healthText">checking&hellip;</span></div>
+      <button class="secondary theme-toggle" id="themeToggleApp" type="button">Light</button>
+    </div>
   </div>
 
   <div class="tab-row">
@@ -415,6 +477,18 @@
    <div class="view-inner">
     <div class="doc-title">Review Workspace</div>
     <div class="doc-sub">Executive summary first, then risk flags with deviation scores and confidence breakdowns, then clause-by-clause detail, then a negotiation playbook per flagged clause, then a question box for this document at the very bottom.</div>
+    <div id="currentDocumentIndicator"></div>
+
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit A-0 &middot; Lookup</span>
+      <h3>Open a Document</h3>
+      <label class="field-label first">Document ID</label>
+      <input type="text" id="documentDetailId" placeholder="paste a document_id, or leave blank to use the document above" />
+      <div class="btn-row">
+        <button class="secondary" id="documentDetailSubmit">Load Document Detail</button>
+      </div>
+    </div>
+
     <div id="reviewResult"><div class="empty-note">Submit a document on the Upload Workspace screen to review it here once the pipeline pauses for approval.</div></div>
 
     <div class="exhibit">
@@ -444,12 +518,50 @@
     </div>
 
     <div id="dashboardResult"></div>
+
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit E &middot; Evaluation Matrix</span>
+      <h3>Extraction Quality Against Labeled Eval Set</h3>
+      <div class="doc-sub" style="margin-bottom:14px;">Clause recall, risk-flag precision, and missing-clause detection accuracy, scored against tests/eval/labeled_eval_set.json. Cached from the last manual refresh, since a live run makes real LLM calls per document.</div>
+      <div class="btn-row" style="margin-top:0;">
+        <button class="secondary" id="evalRefresh">Run Fresh Eval (slow, calls the LLM)</button>
+      </div>
+      <div id="evalResult"></div>
+    </div>
    </div>
   </div>
 </div>
 
 <script>
 const API_BASE = "";
+
+// ============================= Theme (light/dark) =============================
+
+const THEME_STORAGE_KEY = "legal-graphrag-theme";
+
+function applyTheme(theme) {
+  if (theme === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  const label = theme === "light" ? "Dark" : "Light";
+  const loginBtn = document.getElementById("themeToggleLogin");
+  const appBtn = document.getElementById("themeToggleApp");
+  if (loginBtn) loginBtn.textContent = label;
+  if (appBtn) appBtn.textContent = label;
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  const next = current === "light" ? "dark" : "light";
+  localStorage.setItem(THEME_STORAGE_KEY, next);
+  applyTheme(next);
+}
+
+applyTheme(localStorage.getItem(THEME_STORAGE_KEY) === "light" ? "light" : "dark");
+document.getElementById("themeToggleLogin").addEventListener("click", toggleTheme);
+document.getElementById("themeToggleApp").addEventListener("click", toggleTheme);
 
 async function apiFetch(path, options = {}) {
   const res = await fetch(API_BASE + path, { ...options, credentials: "include" });
@@ -561,11 +673,61 @@ function clauseBlock(c) {
 
 let ingestThreadId = null;
 
+// Shared client-side document context, set once an ingestion job pauses or
+// completes, and read by the Ask Counsel and Approval & Escalation tabs so a
+// reviewer doesn't have to re-type the same document's identifiers by hand.
+let currentDocument = { jobId: null, documentId: null, collectionName: null, documentName: null };
+
+function renderCurrentDocumentIndicator() {
+  const el = document.getElementById("currentDocumentIndicator");
+  if (!el) return;
+  if (!currentDocument.documentName && !currentDocument.jobId) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = `
+    <div class="notice info" style="margin-top:0;">
+      Currently viewing: <b>${escapeHtml(currentDocument.documentName || "unnamed document")}</b>
+      ${currentDocument.jobId ? ` &middot; Job ${escapeHtml(currentDocument.jobId)}` : ""}
+    </div>
+  `;
+}
+
+function setCurrentDocument(fields) {
+  currentDocument = { ...currentDocument, ...fields };
+  renderCurrentDocumentIndicator();
+  const askCollection = document.getElementById("askCollection");
+  if (askCollection && currentDocument.collectionName && !askCollection.value) {
+    askCollection.value = currentDocument.collectionName;
+  }
+  const auditJobId = document.getElementById("auditJobId");
+  if (auditJobId && currentDocument.jobId && !auditJobId.value) {
+    auditJobId.value = currentDocument.jobId;
+  }
+  const documentDetailId = document.getElementById("documentDetailId");
+  if (documentDetailId && currentDocument.documentId && !documentDetailId.value) {
+    documentDetailId.value = currentDocument.documentId;
+  }
+}
+
+function renderExecutiveSummary(ctx) {
+  if (!ctx || !ctx.executive_summary) return "";
+  return `
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit A-0 &middot; Executive Summary</span>
+      <h3>Executive Summary</h3>
+      <div class="final-answer">${escapeHtml(ctx.executive_summary)}</div>
+    </div>
+  `;
+}
+
 function renderIngestPayload(payload) {
   const ctx = payload.document_context || {};
   const parties = (ctx.parties || []).map(p => `${escapeHtml(p.name)}${p.role ? ` (${escapeHtml(p.role)})` : ""}`).join(", ");
 
-  let html = `
+  let html = renderExecutiveSummary(ctx);
+
+  html += `
     <div class="docket-strip">
       <div class="docket-item"><div class="num">${payload.num_clauses ?? 0}</div><div class="cap">Clauses Extracted</div></div>
       <div class="docket-item"><div class="num ${payload.num_high_risk_flags ? 'flag' : ''}">${payload.num_high_risk_flags ?? 0}</div><div class="cap">High-Risk Flags</div></div>
@@ -708,14 +870,28 @@ async function handleIngestResponse(resp) {
   const statusOut = document.getElementById("statusResult");
   const out = document.getElementById("reviewResult");
   if (resp.state === "paused") {
-    statusOut.innerHTML = renderProcessingStatus(INGEST_STAGES.length - 1);
+    const ctx = (resp.payload && resp.payload.document_context) || {};
+    setCurrentDocument({
+      jobId: resp.payload.job_id || null,
+      documentId: ctx.document_id || null,
+      collectionName: currentDocument.collectionName || document.getElementById("ingestCollection").value || null,
+      documentName: ctx.document_name || null,
+    });
+    statusOut.innerHTML = renderProcessingStatus(INGEST_STAGES.length - 1, false);
     out.innerHTML = `<div class="notice info">Paused for review: ${escapeHtml(resp.checkpoint)}</div>` + renderIngestPayload(resp.payload);
     document.getElementById("ingestDecisionSubmit").addEventListener("click", submitIngestDecision);
     switchToView("review");
   } else {
     const status = resp.result && resp.result.status;
+    const ctx = (resp.result && resp.result.document_context) || {};
+    setCurrentDocument({
+      jobId: (resp.result && resp.result.job_id) || currentDocument.jobId,
+      documentId: ctx.document_id || (resp.result && resp.result.document_id) || currentDocument.documentId,
+      documentName: ctx.document_name || currentDocument.documentName,
+    });
+    statusOut.innerHTML = renderProcessingStatus(INGEST_STAGES.length, true);
     const stampClass = status === "approved" ? "low" : status === "escalated" ? "medium" : "high";
-    out.innerHTML = `
+    out.innerHTML = renderExecutiveSummary(ctx) + `
       <div class="exhibit">
         <span class="exhibit-label">Docket Entry &middot; Closed</span>
         <h3>Job Complete</h3>
@@ -751,13 +927,20 @@ function exportTextFile(text, filename) {
 }
 
 function buildIngestExportText(result) {
+  const ctx = (result && result.document_context) || {};
   const lines = [
     "LEGAL DOCUMENT REVIEW SUMMARY",
     "==============================",
     "",
-    `Document: ${result.document_name || "unknown"}`,
+    `Document: ${ctx.document_name || result.document_name || "unknown"}`,
     `Status: ${result.status || "unknown"}`,
     `Vendor: ${result.vendor_name || "n/a"}`,
+    `Contract Type: ${ctx.contract_type || "unknown"}`,
+    `Governing Law: ${ctx.governing_law_country || "unknown"}`,
+    "",
+    "EXECUTIVE SUMMARY",
+    "-----------------",
+    ctx.executive_summary || "(no executive summary was generated for this document)",
     "",
     "This is a system-generated review summary. It reflects AI-assisted extraction",
     "and is pending or subject to the recorded reviewer decision above; it does not",
@@ -797,16 +980,25 @@ const INGEST_STAGES = [
   "Awaiting your review",
 ];
 
-function renderProcessingStatus(activeIndex) {
+const INGEST_FINAL_STAGE_LABEL = "Reviewed and closed";
+
+// activeIndex is the stage currently running (or INGEST_STAGES.length once the
+// pipeline has paused for review). reviewed=true means a decision has actually
+// been recorded by the backend, so the final stage reflects the real outcome
+// instead of a timer's guess; only then does it flip to "done".
+function renderProcessingStatus(activeIndex, reviewed) {
   const rows = INGEST_STAGES.map((stage, i) => {
+    const isFinalStage = i === INGEST_STAGES.length - 1;
+    const label = isFinalStage && reviewed ? INGEST_FINAL_STAGE_LABEL : stage;
     let marker;
-    if (i < activeIndex) marker = `<span class="stamp low">done</span>`;
+    if (isFinalStage && reviewed) marker = `<span class="stamp low">done</span>`;
+    else if (i < activeIndex) marker = `<span class="stamp low">done</span>`;
     else if (i === activeIndex) marker = `<span class="stamp medium"><span class="spinner"></span>running</span>`;
     else marker = `<span class="stamp neutral">pending</span>`;
     return `
       <div class="docket-log-item" style="grid-template-columns: 100px 1fr;">
         <div>${marker}</div>
-        <div class="docket-log-action">${escapeHtml(stage)}</div>
+        <div class="docket-log-action">${escapeHtml(label)}</div>
       </div>
     `;
   }).join("");
@@ -826,14 +1018,20 @@ document.getElementById("ingestSubmit").addEventListener("click", async () => {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span>Processing&hellip;`;
   const resultEl = document.getElementById("statusResult");
-  resultEl.innerHTML = renderProcessingStatus(0);
+  resultEl.innerHTML = renderProcessingStatus(0, false);
   switchToView("status");
 
+  // The backend runs this whole pipeline synchronously in one request (see
+  // /api/ingestion/jobs in main.py), so there's no real intermediate progress
+  // to poll; this animates through the known stage labels purely as a "the
+  // browser hasn't frozen" indicator while we wait, and is never used to
+  // render the final "Awaiting your review"/"Reviewed and closed" stage,
+  // which only ever comes from the real response in handleIngestResponse.
   let stageIndex = 0;
   const stageTimer = setInterval(() => {
-    if (stageIndex < INGEST_STAGES.length - 1) {
+    if (stageIndex < INGEST_STAGES.length - 2) {
       stageIndex += 1;
-      resultEl.innerHTML = renderProcessingStatus(stageIndex);
+      resultEl.innerHTML = renderProcessingStatus(stageIndex, false);
     }
   }, 1800);
 
@@ -859,6 +1057,130 @@ document.getElementById("ingestSubmit").addEventListener("click", async () => {
   } finally {
     btn.disabled = false;
     btn.textContent = "Submit for Review";
+  }
+});
+
+// ============================= Document Detail (persistent view) =============================
+
+function renderPlaybookBlock(pb) {
+  if (!pb) return "";
+  return `
+    <div class="clause-meta" style="margin-top:10px;">Negotiation Playbook (source: ${escapeHtml(pb.fallback_source)})</div>
+    <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
+      ${(pb.fallback_positions || []).length ? `Fallback positions (ideal to acceptable):<ol>${pb.fallback_positions.map(p => `<li>${escapeHtml(p)}</li>`).join("")}</ol>` : ""}
+      ${pb.suggested_redline ? `Suggested redline: ${escapeHtml(pb.suggested_redline)}` : ""}
+    </div>
+  `;
+}
+
+function renderDocumentDetail(doc) {
+  let html = `
+    <div class="exhibit">
+      <span class="exhibit-label">Exhibit A-1 &middot; Particulars</span>
+      <h3>Document Detail</h3>
+      <div class="clause-meta">${escapeHtml(doc.filename || "")} &middot; Document ${escapeHtml(doc.document_id || "")}</div>
+      <div class="row" style="margin-top:12px;">
+        <div><div class="clause-meta" style="margin-bottom:2px;">Document Type</div><div>${escapeHtml(doc.document_type || "unknown")}</div></div>
+        <div><div class="clause-meta" style="margin-bottom:2px;">Status</div><div>${escapeHtml(doc.status || "unknown")}</div></div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <div><div class="clause-meta" style="margin-bottom:2px;">Counterparty</div><div>${escapeHtml(doc.counterparty || "n/a")}</div></div>
+        <div><div class="clause-meta" style="margin-bottom:2px;">Business Unit</div><div>${escapeHtml(doc.business_unit || "n/a")}</div></div>
+      </div>
+    </div>
+  `;
+
+  if (doc.executive_summary) {
+    html += `
+      <div class="exhibit">
+        <span class="exhibit-label">Exhibit A-0 &middot; Executive Summary</span>
+        <h3>Executive Summary</h3>
+        <div class="final-answer">${escapeHtml(doc.executive_summary)}</div>
+      </div>
+    `;
+  }
+
+  const clauses = doc.clauses || [];
+  const flaggedClauses = clauses.filter(c => (c.risk_flags || []).length);
+
+  if (flaggedClauses.length) {
+    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-3 &middot; Risk</span><h3>Risk Flags</h3>`;
+    for (const c of flaggedClauses) {
+      for (const f of c.risk_flags) {
+        html += `
+          <div class="annotation-row" style="margin-bottom:20px;">
+            <div class="annotation-main">
+              <div class="clause-meta">Page ${escapeHtml(c.page_reference)} &middot; ${escapeHtml(c.clause_type || "")}</div>
+              <div class="ruled-text">${escapeHtml(c.extracted_text)}</div>
+              ${f.deviation_detail ? `
+                <div class="clause-meta" style="margin-top:10px;">Org-Profile Deviation</div>
+                <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
+                  Deviation score: <b>${f.deviation_score !== null ? f.deviation_score.toFixed(2) : "n/a"}</b><br/>
+                  Approved position: ${escapeHtml(f.deviation_detail.approved_position)}<br/>
+                  This contract's position: ${escapeHtml(f.deviation_detail.contract_position)}
+                </div>
+              ` : ""}
+              ${f.confidence_breakdown ? `
+                <div class="clause-meta" style="margin-top:10px;">Evidence-Weighted Confidence</div>
+                <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
+                  Composite: <b>${f.confidence_breakdown.composite !== null ? f.confidence_breakdown.composite.toFixed(2) : "n/a"}</b>
+                  &middot; OCR quality: ${f.confidence_breakdown.components.ocr_quality !== null ? f.confidence_breakdown.components.ocr_quality.toFixed(2) : "n/a"}
+                  &middot; Retrieval relevance: ${f.confidence_breakdown.components.retrieval_relevance !== null ? f.confidence_breakdown.components.retrieval_relevance.toFixed(2) : "n/a"}
+                  &middot; Model self-reported: ${f.confidence_breakdown.components.llm_confidence !== null ? f.confidence_breakdown.components.llm_confidence.toFixed(2) : "n/a"}
+                </div>
+              ` : ""}
+              ${renderPlaybookBlock(f.playbook)}
+            </div>
+            <div class="annotation-side">
+              <span class="stamp ${f.severity === 'high' ? 'high' : f.severity === 'medium' ? 'medium' : 'low'}">${escapeHtml(f.severity)} risk</span>
+              ${f.assigned_role === "senior_counsel" ? `<span class="stamp medium">Senior Counsel</span>` : ""}
+              <div class="label">Finding</div>
+              <div style="font-family:var(--sans); font-size:16px; line-height:1.5;">${escapeHtml(f.rationale)}</div>
+              ${f.recommended_action ? `<div class="label">Recommended Action</div><div style="font-family:var(--sans); font-size:16px;">${escapeHtml(f.recommended_action)}</div>` : ""}
+              <div class="label">Confidence</div>
+              <div class="value">${confidenceValue(f.confidence)}</div>
+              <div class="label">Reviewer Status</div>
+              <div style="font-family:var(--sans); font-size:16px;">${escapeHtml(f.reviewer_status)}</div>
+            </div>
+          </div>
+          <hr class="rule">
+        `;
+      }
+    }
+    html += `</div>`;
+  }
+
+  if (clauses.length) {
+    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-6 &middot; Clauses</span><h3>All Clauses</h3>`;
+    for (const c of clauses) {
+      html += `
+        <div style="margin-bottom:14px;">
+          <div class="clause-meta">Page ${escapeHtml(c.page_reference)} &middot; ${escapeHtml(c.clause_type || "unclassified")} &middot; confidence ${confidenceValue(c.confidence)}</div>
+          <div class="ruled-text">${escapeHtml(c.extracted_text)}</div>
+        </div>
+      `;
+    }
+    html += `</div>`;
+  }
+
+  return html;
+}
+
+document.getElementById("documentDetailSubmit").addEventListener("click", async () => {
+  const documentId = document.getElementById("documentDetailId").value.trim() || currentDocument.documentId;
+  const out = document.getElementById("reviewResult");
+  if (!documentId) { alert("Enter a document ID, or upload a document first so one is picked up automatically."); return; }
+  const btn = document.getElementById("documentDetailSubmit");
+  btn.disabled = true;
+  out.innerHTML = `<div class="empty-note">Loading document detail&hellip;</div>`;
+  try {
+    const doc = await apiFetch(`/api/documents/${encodeURIComponent(documentId)}`);
+    setCurrentDocument({ documentId: doc.document_id, documentName: doc.filename, jobId: doc.job_id || currentDocument.jobId });
+    out.innerHTML = renderDocumentDetail(doc);
+  } catch (e) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
   }
 });
 
@@ -1209,7 +1531,65 @@ async function loadDashboard() {
   } finally {
     btn.disabled = false;
   }
+  loadEvalSummary();
 }
+
+function pct(value) {
+  return value === null || value === undefined ? "n/a" : `${(value * 100).toFixed(0)}%`;
+}
+
+function renderEvalSummary(summary) {
+  if (!summary.computed) {
+    return `<div class="empty-note">${escapeHtml(summary.note || "No eval run cached yet.")}</div>`;
+  }
+  const rows = (summary.documents || []).map(d => `
+    <div class="docket-log-item" style="grid-template-columns: 2fr 1fr 1fr 1fr;">
+      <div class="docket-log-action">${escapeHtml(d.filename)}</div>
+      <div>${pct(d.clause_recall)}</div>
+      <div>${pct(d.risk_precision)}</div>
+      <div>${d.missing_clause_detection_correct ? "correct" : "mismatch"}</div>
+    </div>
+  `).join("");
+  return `
+    <div class="docket-log-item" style="grid-template-columns: 2fr 1fr 1fr 1fr; font-weight:700; font-family:var(--sans); font-size:13.4px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-faint);">
+      <div>Document</div><div>Clause Recall</div><div>Risk Precision</div><div>Missing-Clause Check</div>
+    </div>
+    ${rows}
+    <hr class="rule">
+    <div class="docket-log-item" style="grid-template-columns: 2fr 1fr 1fr 1fr; font-weight:700;">
+      <div class="docket-log-action">Average</div>
+      <div>${pct(summary.average_clause_recall)}</div>
+      <div>${pct(summary.average_risk_precision)}</div>
+      <div>${pct(summary.average_missing_clause_accuracy)}</div>
+    </div>
+  `;
+}
+
+async function loadEvalSummary() {
+  const out = document.getElementById("evalResult");
+  out.innerHTML = `<div class="empty-note">Loading&hellip;</div>`;
+  try {
+    const summary = await apiFetch("/api/eval/summary");
+    out.innerHTML = renderEvalSummary(summary);
+  } catch (e) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+document.getElementById("evalRefresh").addEventListener("click", async () => {
+  const btn = document.getElementById("evalRefresh");
+  const out = document.getElementById("evalResult");
+  btn.disabled = true;
+  out.innerHTML = `<div class="empty-note"><span class="spinner"></span>Running eval against the labeled set, this calls the LLM per document and can take a while&hellip;</div>`;
+  try {
+    const summary = await apiFetch("/api/eval/refresh", { method: "POST" });
+    out.innerHTML = renderEvalSummary(summary);
+  } catch (e) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 document.getElementById("dashboardRefresh").addEventListener("click", loadDashboard);
 
