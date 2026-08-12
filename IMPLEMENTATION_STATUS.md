@@ -3,7 +3,7 @@
 ## Repository
 - Path: D:\LegalAssistant
 - Branch: main
-- Latest commit: pending (Phase 5, this session), 9 commits ahead of origin/main before this phase, not pushed to GitHub yet.
+- Latest commit: f63d40a (Add standards resolution hierarchy), 10 commits ahead of origin/main, not pushed to GitHub yet.
 - Working tree: clean
 - Last updated: 2026-08-12
 
@@ -122,7 +122,7 @@
 | 2 | Complete | 3ff2821 | 31 passed (24 pre-existing + 7 new authorization tests); verified against live Docker container (rebuild + health check + /docs 200 + Playwright login/dropdown/logout screenshots) | Swagger env-gated, profile dropdown, senior_counsel routing enforced. See Phase 2 Decisions above. |
 | 3 | Complete | 2aa6539 (bundled with UI redesign commits) | 31 passed (unaffected, frontend-only change); verified with 3 scripted Playwright runs against the live container | URL/localStorage document persistence, universal document header, read-only metadata fields, stale-result cleanup on document switch. See Phase 3 Decisions above. |
 | 4 | Complete | 3c9edb6 | 50 passed total (31 prior + 19 new); 3 pre-existing rate-limiter flakes confirmed unrelated; verified live via Playwright against the rebuilt Docker container | Hybrid deterministic+Gemini confidentiality classifier, override + audit trail, access control by level, UI badge/history, collection_name persistence fix. See Phase 4 Decisions above. |
-| 5 | Complete | pending (this phase not yet committed) | 67 passed total (50 prior + 17 new); shared rate-limiter flakes reproduce only across TestClient files run together, confirmed pre-existing; verified live via Playwright against the rebuilt Docker container (TCS vs. Tata Steel resolving different liability standards) | Deterministic 8-level standards resolution hierarchy, conflict/mandatory/prohibited rules, tenant-isolated retrieval, TCS/Tata Steel/Tata Motors demo standards, Standards Lookup UI. Two document_type wildcard/leak bugs found and fixed during live verification. See Phase 5 Decisions above. |
+| 5 | Complete | f63d40a | 67 passed total (50 prior + 17 new); shared rate-limiter flakes reproduce only across TestClient files run together, confirmed pre-existing; verified live via Playwright against the rebuilt Docker container (TCS vs. Tata Steel resolving different liability standards) | Deterministic 8-level standards resolution hierarchy, conflict/mandatory/prohibited rules, tenant-isolated retrieval, TCS/Tata Steel/Tata Motors demo standards, Standards Lookup UI. Two document_type wildcard/leak bugs found and fixed during live verification. See Phase 5 Decisions above. |
 
 ## Committed Changes (pre-existing at session start, reviewed then committed)
 Reviewed via `git diff`, not discarded, committed as ab1ae7e "Fix document context threading":
