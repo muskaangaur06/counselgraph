@@ -381,6 +381,12 @@
   .chat-panel-footer { padding: 12px; border-top: 1px solid var(--rule); flex-shrink: 0; }
   .chat-panel-footer textarea { min-height: 44px; font-size: 15.5px; }
   .chat-empty { color: var(--ink-faint); font-size: 15.0px; text-align: center; padding: 30px 10px; }
+  .chat-question {
+    background: var(--surface-2); border: 1px solid var(--rule); border-radius: var(--radius-sm);
+    padding: 10px 14px; margin-bottom: 12px; font-size: 15.2px; color: var(--ink);
+  }
+  .chat-question .label { display: block; font-size: 12.1px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--ink-faint); font-weight: 700; margin-bottom: 3px; }
   .chat-doc-context { font-size: 13.0px; color: var(--ink-faint); padding: 6px 0 10px; }
 
   @media (max-width: 760px) {
@@ -989,6 +995,7 @@ function clearCurrentDocument() {
   // the previous document, so switching documents can't leave a stale answer
   // or audit result that looks like it belongs to the newly-selected one
   askThreadId = null;
+  askCurrentQuestion = null;
   const askResult = document.getElementById("askResult");
   if (askResult) askResult.innerHTML = `<div class="chat-empty">Load or upload a document, then ask a question about it here.</div>`;
   const auditResult = document.getElementById("auditResult");
@@ -1967,6 +1974,7 @@ document.getElementById("portfolioSubmit").addEventListener("click", async () =>
 // ============================= Ask Counsel / Query =============================
 
 let askThreadId = null;
+let askCurrentQuestion = null;
 
 function renderEvidencePayload(payload) {
   const v = payload.evidence_verdict || {};
@@ -2049,23 +2057,29 @@ function renderAnswerPayload(payload) {
   `;
 }
 
+function renderChatQuestionBubble() {
+  if (!askCurrentQuestion) return "";
+  return `<div class="chat-question"><span class="label">You asked</span>${escapeHtml(askCurrentQuestion)}</div>`;
+}
+
 async function handleAskResponse(resp) {
   askThreadId = resp.thread_id;
   const out = document.getElementById("askResult");
+  const questionBubble = renderChatQuestionBubble();
   if (resp.state === "paused") {
     if (resp.checkpoint === "answer_approval_request") {
-      out.innerHTML = `<div class="notice info">Paused for review: answer review (round ${resp.payload.revision_round ?? 0})</div>` + renderAnswerPayload(resp.payload);
+      out.innerHTML = questionBubble + `<div class="notice info">Paused for review: answer review (round ${resp.payload.revision_round ?? 0})</div>` + renderAnswerPayload(resp.payload);
       document.getElementById("answerDecisionSubmit").addEventListener("click", submitAnswerDecision);
     } else {
-      out.innerHTML = `<div class="notice info">Paused for review: evidence review</div>` + renderEvidencePayload(resp.payload);
+      out.innerHTML = questionBubble + `<div class="notice info">Paused for review: evidence review</div>` + renderEvidencePayload(resp.payload);
       document.getElementById("evidenceDecisionSubmit").addEventListener("click", submitEvidenceDecision);
     }
   } else {
     const answer = resp.result && resp.result.final_answer;
     const status = resp.result && resp.result.status;
-    out.innerHTML = answer
+    out.innerHTML = questionBubble + (answer
       ? `<div class="exhibit"><span class="exhibit-label">Answered</span><h3>Final Answer</h3><div class="final-answer">${escapeHtml(answer)}</div></div>`
-      : `<div class="notice info">Completed. No answer returned (status: ${escapeHtml(status)}).</div>`;
+      : `<div class="notice info">Completed. No answer returned (status: ${escapeHtml(status)}).</div>`);
   }
 }
 
@@ -2126,6 +2140,7 @@ document.getElementById("askSubmit").addEventListener("click", async () => {
   const btn = document.getElementById("askSubmit");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span>Asking&hellip;`;
+  askCurrentQuestion = question;
   document.getElementById("askResult").innerHTML = "";
   try {
     const resp = await apiFetch("/api/query/jobs", {
