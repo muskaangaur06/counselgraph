@@ -867,6 +867,7 @@ function renderDocHeader() {
 
   const metaParts = [];
   if (meta.org_profile_id) metaParts.push(`<span>Org profile <b>${escapeHtml(meta.org_profile_id.slice(0, 8))}</b></span>`);
+  if (meta.business_unit) metaParts.push(`<span>Business unit <b>${escapeHtml(meta.business_unit)}</b></span>`);
   if (meta.counterparty) metaParts.push(`<span>Counterparty <b>${escapeHtml(meta.counterparty)}</b></span>`);
   if (meta.document_type) metaParts.push(`<span>Type <b>${escapeHtml(meta.document_type)}</b></span>`);
   const confLabel = confidentialityLabel(meta.confidentiality_level);
@@ -1093,6 +1094,13 @@ async function handleIngestResponse(resp) {
       collectionName: currentDocument.collectionName || document.getElementById("ingestCollection").value || null,
       documentName: ctx.document_name || null,
     });
+    // document_context only carries id/name/executive_summary, not the
+    // org profile/confidentiality/business unit picked on the upload form --
+    // those live on the Document row itself, so fetch it once here to
+    // populate the header instead of leaving those badges blank
+    if (ctx.document_id) {
+      loadDocumentDetailInto(ctx.document_id).catch(() => {});
+    }
     statusOut.innerHTML = renderProcessingStatus(INGEST_STAGES.length - 1, false);
     out.innerHTML = `<div class="notice info">Paused for review: ${escapeHtml(resp.checkpoint)}</div>` + renderIngestPayload(resp.payload);
     document.getElementById("ingestDecisionSubmit").addEventListener("click", submitIngestDecision);
@@ -1100,11 +1108,15 @@ async function handleIngestResponse(resp) {
   } else {
     const status = resp.result && resp.result.status;
     const ctx = (resp.result && resp.result.document_context) || {};
+    const resolvedDocumentId = ctx.document_id || (resp.result && resp.result.document_id) || currentDocument.documentId;
     setCurrentDocument({
       jobId: (resp.result && resp.result.job_id) || currentDocument.jobId,
-      documentId: ctx.document_id || (resp.result && resp.result.document_id) || currentDocument.documentId,
+      documentId: resolvedDocumentId,
       documentName: ctx.document_name || currentDocument.documentName,
     });
+    if (resolvedDocumentId) {
+      loadDocumentDetailInto(resolvedDocumentId).catch(() => {});
+    }
     statusOut.innerHTML = renderProcessingStatus(INGEST_STAGES.length, true);
     const stampClass = status === "approved" ? "low" : status === "escalated" ? "medium" : "high";
     out.innerHTML = renderExecutiveSummary(ctx) + `
@@ -1391,6 +1403,7 @@ async function loadDocumentDetailInto(documentId, out) {
     docMeta: {
       status: doc.status, org_profile_id: doc.org_profile_id, counterparty: doc.counterparty,
       document_type: doc.document_type, confidentiality_level: doc.confidentiality_level,
+      business_unit: doc.business_unit,
     },
   });
   if (out) out.innerHTML = renderDocumentDetail(doc);
