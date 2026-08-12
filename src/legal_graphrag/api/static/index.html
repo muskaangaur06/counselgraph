@@ -3,231 +3,244 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Legal GraphRAG (Case File)</title>
+<title>CounselGraph</title>
 <style>
   :root {
-    --bg-deep: #14110d;
-    --paper: rgba(255,255,255,0.035);
-    --paper-2: rgba(0,0,0,0.18);
-    --paper-line: rgba(233,226,211,0.09);
-    --ink: #e9e2d3;
-    --ink-soft: rgba(233,226,211,0.5);
-    --ink-faint: rgba(233,226,211,0.32);
-    --rule: rgba(233,226,211,0.12);
-    --maroon: #b3453a;
-    --maroon-bright: #e0968a;
-    --maroon-soft: rgba(179,69,58,0.18);
-    --maroon-border: rgba(179,69,58,0.45);
-    --olive: #8fd19e;
-    --olive-soft: rgba(143,209,158,0.14);
-    --olive-border: rgba(143,209,158,0.4);
-    --ochre: #e0b45a;
-    --ochre-soft: rgba(224,180,90,0.15);
-    --ochre-border: rgba(224,180,90,0.4);
-    --mono: "Courier New", Consolas, monospace;
-    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --bg-deep: #0e0708;
+    --bg-deep-2: #170a0c;
+    --surface-1: rgba(255,240,235,0.055);
+    --surface-2: rgba(255,240,235,0.09);
+    --surface-3: rgba(255,240,235,0.03);
+    --glass: rgba(255,240,235,0.045);
+    --glass-border: rgba(255,170,150,0.14);
+    --rule: rgba(255,190,175,0.14);
+    --paper-line: rgba(255,190,175,0.09);
+    --ink: #f8ece7;
+    --ink-soft: rgba(248,236,231,0.64);
+    --ink-faint: rgba(248,236,231,0.42);
+    --heading-ink: #fff8f5;
+    --field-bg: rgba(255,240,235,0.045);
+    --card-bg: rgba(255,235,228,0.05);
+    --popover-bg: #23100f;
+
+    --accent: #e0293f;
+    --accent-bright: #ff5a6b;
+    --accent-soft: rgba(224,41,63,0.18);
+    --accent-border: rgba(224,41,63,0.45);
+    --accent-grad: linear-gradient(135deg, #ff3b4e 0%, #8f1330 55%, #4a0a1e 100%);
+
+    --danger: #ff6b6b;
+    --danger-soft: rgba(255,107,107,0.14);
+    --danger-border: rgba(255,107,107,0.38);
+    --warn: #ffb84d;
+    --warn-soft: rgba(255,184,77,0.14);
+    --warn-border: rgba(255,184,77,0.36);
+    --good: #4ade80;
+    --good-soft: rgba(74,222,128,0.14);
+    --good-border: rgba(74,222,128,0.36);
+
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
-    --folio-bg: #191510;
-    --masthead-bg: #241a17;
-    --heading-ink: #f4efe4;
-    --surface-1: rgba(255,255,255,0.05);
-    --surface-2: rgba(0,0,0,0.2);
-    --surface-3: rgba(255,255,255,0.03);
-    --field-bg: #14100c;
-    --exhibit-bg: #201812;
-    --button-ink: #fbf3ec;
-    --button-hover: #a03b31;
-    --spinner-track: rgba(251,243,236,0.35);
-    --raw-bg: rgba(0,0,0,0.35);
-    --raw-ink: #e0d6bc;
+    --button-ink: #fff8f5;
+    --spinner-track: rgba(255,248,245,0.3);
+    --raw-bg: rgba(0,0,0,0.32);
+    --raw-ink: #f0d8ce;
     --select-ink: #fff;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow-1: 0 1px 2px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.32);
+    --shadow-2: 0 4px 12px rgba(0,0,0,0.35), 0 16px 40px rgba(0,0,0,0.4);
   }
 
   html[data-theme="light"] {
-    --bg-deep: #ece3d0;
-    --paper: rgba(20,15,10,0.035);
-    --paper-2: rgba(20,15,10,0.05);
-    --paper-line: rgba(59,45,31,0.1);
-    --ink: #2c2115;
-    --ink-soft: rgba(44,33,21,0.62);
-    --ink-faint: rgba(44,33,21,0.4);
-    --rule: rgba(59,45,31,0.2);
-    --maroon: #8f342a;
-    --maroon-bright: #7a2b22;
-    --maroon-soft: rgba(143,52,42,0.12);
-    --maroon-border: rgba(143,52,42,0.4);
-    --olive: #3f6b3f;
-    --olive-soft: rgba(63,107,63,0.12);
-    --olive-border: rgba(63,107,63,0.38);
-    --ochre: #8a5f14;
-    --ochre-soft: rgba(138,95,20,0.13);
-    --ochre-border: rgba(138,95,20,0.38);
+    --bg-deep: #fbf1da;
+    --bg-deep-2: #f7e8c9;
+    --surface-1: rgba(122,32,20,0.055);
+    --surface-2: rgba(122,32,20,0.09);
+    --surface-3: rgba(122,32,20,0.035);
+    --glass: rgba(255,252,244,0.68);
+    --glass-border: rgba(122,32,20,0.14);
+    --rule: rgba(122,32,20,0.16);
+    --paper-line: rgba(122,32,20,0.12);
+    --ink: #2e130d;
+    --ink-soft: rgba(46,19,13,0.68);
+    --ink-faint: rgba(46,19,13,0.46);
+    --heading-ink: #200d08;
+    --field-bg: #fffbf2;
+    --card-bg: rgba(255,252,244,0.82);
+    --popover-bg: #fffbf2;
 
-    --folio-bg: #f2ead9;
-    --masthead-bg: #e3d5bb;
-    --heading-ink: #1f170e;
-    --surface-1: rgba(20,15,10,0.05);
-    --surface-2: rgba(20,15,10,0.06);
-    --surface-3: rgba(20,15,10,0.04);
-    --field-bg: #fbf6ea;
-    --exhibit-bg: #f7f0e1;
-    --button-ink: #fbf3ec;
-    --button-hover: #7a2b22;
-    --spinner-track: rgba(251,243,236,0.5);
-    --raw-bg: rgba(44,33,21,0.06);
-    --raw-ink: #3b2d1f;
-    --select-ink: #1f170e;
+    --accent: #a3182b;
+    --accent-bright: #7d0f1f;
+    --accent-soft: rgba(163,24,43,0.13);
+    --accent-border: rgba(163,24,43,0.4);
+    --accent-grad: linear-gradient(135deg, #c22336 0%, #8a1526 60%, #5c0f1c 100%);
+
+    --danger: #b5342a;
+    --danger-soft: rgba(181,52,42,0.11);
+    --danger-border: rgba(181,52,42,0.34);
+    --warn: #a4650a;
+    --warn-soft: rgba(164,101,10,0.11);
+    --warn-border: rgba(164,101,10,0.32);
+    --good: #21895a;
+    --good-soft: rgba(33,137,90,0.11);
+    --good-border: rgba(33,137,90,0.32);
+
+    --button-ink: #fffaf3;
+    --spinner-track: rgba(255,250,243,0.5);
+    --raw-bg: rgba(122,32,20,0.055);
+    --raw-ink: #4a231a;
+    --select-ink: #fff;
+    --shadow-1: 0 1px 2px rgba(90,40,20,0.08), 0 8px 20px rgba(90,40,20,0.09);
+    --shadow-2: 0 4px 12px rgba(90,40,20,0.1), 0 16px 32px rgba(90,40,20,0.13);
   }
+
   * { box-sizing: border-box; }
   html, body { height: 100%; overflow-x: hidden; }
   body {
-    margin: 0; font-family: var(--serif); color: var(--ink);
+    margin: 0; font-family: var(--sans); color: var(--ink);
     background: var(--bg-deep);
+    background-image:
+      radial-gradient(1100px 620px at 6% -10%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 62%),
+      radial-gradient(950px 560px at 98% 4%, color-mix(in srgb, #c9932e 20%, transparent), transparent 58%),
+      radial-gradient(700px 500px at 50% 110%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%);
+    background-attachment: fixed;
     min-height: 100vh;
   }
 
-  .folio {
-    width: 100%; min-height: 100vh;
-    background: var(--folio-bg);
-  }
+  .folio { width: 100%; min-height: 100vh; }
 
-  /* masthead */
-  .masthead {
-    background: var(--masthead-bg);
-    color: var(--ink); padding: 22px 36px; display: flex; justify-content: space-between; align-items: baseline;
-    border-bottom: 1px solid var(--rule);
+  /* ---------- top bar: brand + tabs + profile, one compact glass unit ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 30;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    border-bottom: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-1);
   }
-  .masthead .title-block { display: flex; align-items: baseline; gap: 14px; }
-  .masthead h1 { font-size: 28.2px; font-weight: 400; margin: 0; letter-spacing: 0.01em; color: var(--heading-ink); }
-  .masthead .matter-no {
-    font-family: var(--mono); font-size: 14.1px; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--ink-soft);
+  .topbar-row1 {
+    display: flex; align-items: center; gap: 18px; padding: 10px 24px;
+    border-bottom: 1px solid var(--glass-border);
   }
-  .masthead .status-pill {
-    font-family: var(--sans); font-size: 14.1px; font-weight: 600; padding: 4px 12px; border-radius: 2px;
-    background: var(--surface-1); border: 1px solid var(--rule);
-    display: inline-flex; align-items: center; gap: 6px; color: var(--ink-soft);
+  .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .brand-mark {
+    width: 30px; height: 30px; border-radius: 9px; background: var(--accent-grad);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 45%, transparent);
+    flex-shrink: 0;
   }
+  .brand-name { font-size: 18.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--heading-ink); }
   .theme-toggle {
-    font-family: var(--sans); font-size: 13.4px; font-weight: 600; padding: 4px 12px; border-radius: 2px;
+    font-family: var(--sans); font-size: 14.1px; font-weight: 600; padding: 6px 12px; border-radius: var(--radius-sm);
     background: var(--surface-1); border: 1px solid var(--rule); color: var(--ink-soft); cursor: pointer;
-    margin-left: 14px;
+    flex-shrink: 0;
   }
   .theme-toggle:hover { color: var(--ink); background: var(--surface-2); }
   .login-card .theme-toggle { position: absolute; top: 18px; right: 18px; }
-  .masthead .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--maroon-bright); }
-  .masthead .status-pill.online { background: var(--olive-soft); border-color: var(--olive-border); color: var(--olive); }
-  .masthead .status-pill.online .dot { background: var(--olive); }
 
-  /* folder tabs */
-  .tab-row { display: flex; background: var(--paper-2); border-bottom: 1px solid var(--rule); padding: 0 20px; }
+  .tab-row { display: flex; gap: 2px; padding: 6px 18px; overflow-x: auto; }
   .tab {
-    padding: 13px 22px; font-family: var(--sans); font-size: 16.6px; font-weight: 600; cursor: pointer;
-    color: var(--ink-soft); position: relative; user-select: none;
+    padding: 8px 16px; font-family: var(--sans); font-size: 16.0px; font-weight: 600; cursor: pointer;
+    color: var(--ink-soft); position: relative; user-select: none; border-radius: var(--radius-sm);
+    white-space: nowrap; transition: background 0.15s, color 0.15s;
   }
-  .tab:hover { color: var(--ink); }
-  .tab.active { color: var(--maroon-bright); border-bottom: 2px solid var(--maroon); margin-bottom: -1px; }
+  .tab:hover { color: var(--ink); background: var(--surface-1); }
+  .tab.active { color: #fff; background: var(--accent-grad); box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 35%, transparent); }
 
-  .apikey-row {
-    display: flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--paper-2);
-    border-bottom: 1px solid var(--rule); font-family: var(--sans);
-  }
-  .apikey-row label {
-    font-size: 13.4px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); font-weight: 700;
-    white-space: nowrap; flex-shrink: 0;
-  }
-  .apikey-row input {
-    font-family: var(--mono); font-size: 15.4px; padding: 5px 8px; border: 1px solid var(--rule);
-    background: var(--surface-2); color: var(--ink); border-radius: 2px; width: 320px; max-width: 100%; flex: 0 0 auto;
-  }
-
-  .profile-menu { position: relative; margin-left: auto; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+  .profile-menu { position: relative; flex-shrink: 0; }
   .profile-trigger {
-    display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 6px; border: 1px solid var(--rule);
-    border-radius: 2px; background: var(--surface-1); cursor: pointer; font-family: var(--sans);
+    display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 5px; border: 1px solid var(--rule);
+    border-radius: 99px; background: var(--surface-1); cursor: pointer; font-family: var(--sans);
   }
   .profile-trigger:hover { background: var(--surface-2); }
   .profile-avatar {
-    width: 24px; height: 24px; border-radius: 50%; background: var(--maroon); color: #fff;
-    display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700;
+    width: 26px; height: 26px; border-radius: 50%; background: var(--accent-grad); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 12.3px; font-weight: 700;
     flex-shrink: 0;
   }
-  .profile-trigger-text { display: flex; flex-direction: column; line-height: 1.25; text-align: left; }
-  .profile-trigger-name { font-size: 13.8px; font-weight: 600; color: var(--ink); }
-  .profile-trigger-role { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
-  .profile-caret { font-size: 10px; color: var(--ink-faint); }
+  .profile-trigger-text { display: flex; flex-direction: column; line-height: 1.2; text-align: left; }
+  .profile-trigger-name { font-size: 14.3px; font-weight: 600; color: var(--ink); }
+  .profile-trigger-role { font-size: 11.9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+  .profile-caret { font-size: 10.1px; color: var(--ink-faint); }
   .profile-dropdown {
-    display: none; position: absolute; right: 0; top: calc(100% + 6px); min-width: 220px; z-index: 20;
-    background: var(--surface-1); border: 1px solid var(--rule); border-radius: 2px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.14); font-family: var(--sans); overflow: hidden;
+    display: none; position: absolute; right: 0; top: calc(100% + 8px); min-width: 220px; z-index: 40;
+    background: var(--popover-bg);
+    border: 1px solid var(--glass-border); border-radius: var(--radius);
+    box-shadow: var(--shadow-2); font-family: var(--sans); overflow: hidden;
   }
   .profile-dropdown.open { display: block; }
   .profile-dropdown-header { padding: 12px 14px; border-bottom: 1px solid var(--rule); }
-  .profile-dropdown-header .profile-trigger-name { font-size: 14.4px; }
+  .profile-dropdown-header .profile-trigger-name { font-size: 15.2px; }
   .profile-dropdown-header .profile-trigger-role { margin-top: 2px; }
   .profile-dropdown-item {
-    display: block; width: 100%; text-align: left; padding: 10px 14px; font-size: 14px; color: var(--ink);
+    display: block; width: 100%; text-align: left; padding: 10px 14px; font-size: 15.2px; color: var(--ink);
     background: none; border: none; cursor: pointer;
   }
   .profile-dropdown-item:hover { background: var(--surface-2); }
 
+  /* document header: compact strip, no overlap with the profile dropdown above */
   .doc-header {
-    display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--surface-1);
-    border-bottom: 1px solid var(--rule); font-family: var(--sans);
+    position: relative; z-index: 20;
+    display: flex; align-items: center; gap: 14px; padding: 10px 24px; background: var(--surface-1);
+    border-bottom: 1px solid var(--glass-border); font-family: var(--sans); flex-wrap: wrap;
   }
   .doc-header-main { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-  .doc-header-name { font-size: 15.4px; font-weight: 700; color: var(--ink); }
+  .doc-header-name { font-size: 15.7px; font-weight: 700; color: var(--ink); }
   .doc-header-badge {
-    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
-    padding: 2px 8px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--rule);
-    color: var(--ink-soft);
+    font-size: 12.1px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+    padding: 2px 9px; border-radius: 99px; background: var(--accent-soft); border: 1px solid var(--accent-border);
+    color: var(--accent-bright);
   }
   .doc-header-meta {
-    display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13.4px; color: var(--ink-soft); flex: 1 1 auto;
+    display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14.1px; color: var(--ink-soft); flex: 1 1 auto;
   }
   .doc-header-meta span { white-space: nowrap; }
   .doc-header-meta b { color: var(--ink); font-weight: 600; }
   #docHeaderClear { flex-shrink: 0; }
 
   .field-readonly {
-    font-family: var(--mono); font-size: 15.4px; padding: 5px 8px; border: 1px solid var(--rule);
-    background: var(--surface-1); color: var(--ink-soft); border-radius: 2px; display: inline-block;
+    font-family: var(--mono); font-size: 16.0px; padding: 9px 11px; border: 1px solid var(--rule);
+    background: var(--surface-1); color: var(--ink-soft); border-radius: var(--radius-sm); display: block;
   }
 
-  .view { display: none; padding: 30px 40px 70px; }
+  .view { display: none; padding: 26px 28px 64px; }
   .view.active { display: block; }
-  .view-inner { max-width: 1200px; margin: 0 auto; }
+  .view-inner { max-width: 1180px; margin: 0 auto; }
 
-  .doc-title { font-size: 33.3px; font-weight: 400; margin: 0 0 4px; text-wrap: balance; color: var(--heading-ink); }
-  .doc-sub { font-family: var(--sans); font-size: 16px; color: var(--ink-soft); margin: 0 0 26px; max-width: 620px; line-height: 1.6; }
+  .doc-title { font-size: 29.1px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; color: var(--heading-ink); }
+  .doc-sub { font-family: var(--sans); font-size: 16.2px; color: var(--ink-soft); margin: 0 0 22px; max-width: 680px; line-height: 1.55; }
 
-  /* exhibit / section blocks */
+  /* glass cards */
   .exhibit {
-    background: var(--exhibit-bg); border: 1px solid var(--rule); padding: 20px 24px;
-    margin-bottom: 18px; position: relative;
+    background: var(--card-bg); border: 1px solid var(--glass-border); border-radius: var(--radius);
+    padding: 20px 22px; margin-bottom: 16px; position: relative; box-shadow: var(--shadow-1);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    transition: box-shadow 0.2s, border-color 0.2s;
   }
+  .exhibit:hover { border-color: var(--accent-border); box-shadow: var(--shadow-1), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent); }
   .exhibit-label {
-    font-family: var(--mono); font-size: 13.4px; text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--maroon-bright); margin-bottom: 10px; display: block;
+    font-family: var(--sans); font-size: 12.9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--accent-bright); margin-bottom: 8px; display: block;
   }
   .exhibit h3 {
-    font-family: var(--sans); font-size: 15.4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
-    color: var(--ink); margin: 0 0 14px; border-bottom: 1px solid var(--paper-line); padding-bottom: 8px;
+    font-family: var(--sans); font-size: 17.2px; font-weight: 700;
+    color: var(--ink); margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--paper-line);
   }
 
   label.field-label {
-    display: block; font-family: var(--sans); font-size: 14.7px; font-weight: 700; color: var(--ink-faint);
-    margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.04em;
+    display: block; font-family: var(--sans); font-size: 13.9px; font-weight: 700; color: var(--ink-faint);
+    margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.05em;
   }
   label.field-label.first { margin-top: 0; }
   input[type=text], input[type=password], input[type=file], textarea, select {
-    width: 100%; padding: 9px 11px; border: 1px solid var(--rule); border-radius: 2px;
-    font-size: 17.3px; font-family: var(--sans); background: var(--field-bg); color: var(--ink);
+    width: 100%; padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--radius-sm);
+    font-size: 16.2px; font-family: var(--sans); background: var(--field-bg); color: var(--ink);
   }
   input[type=text]::placeholder, input[type=password]::placeholder, textarea::placeholder { color: var(--ink-faint); }
   input[type=text]:focus, input[type=password]:focus, textarea:focus, select:focus {
-    outline: none; border-color: var(--maroon); box-shadow: 0 0 0 3px var(--maroon-soft);
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
   }
   input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
     -webkit-box-shadow: 0 0 0 1000px var(--field-bg) inset;
@@ -235,20 +248,24 @@
     caret-color: var(--ink);
   }
   textarea { min-height: 76px; resize: vertical; line-height: 1.5; font-family: var(--sans); }
-  .row { display: flex; gap: 16px; }
+  .row { display: flex; gap: 14px; }
   .row > div { flex: 1; }
 
   button {
     font-family: var(--sans);
-    background: var(--maroon);
-    color: var(--button-ink); border: 1px solid var(--maroon-border);
-    padding: 10px 20px; border-radius: 2px; font-size: 16.6px; font-weight: 700; cursor: pointer;
-    letter-spacing: 0.02em;
+    background: var(--accent-grad);
+    color: var(--button-ink); border: 1px solid transparent;
+    padding: 10px 18px; border-radius: var(--radius-sm); font-size: 16.0px; font-weight: 700; cursor: pointer;
+    letter-spacing: 0.01em; box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
+    transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
   }
-  button:hover { background: var(--button-hover); }
-  button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
-  button.secondary:hover { background: var(--surface-1); }
-  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button:hover { filter: brightness(1.08); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 40%, transparent); }
+  button:active { transform: translateY(1px); }
+  button.secondary {
+    background: var(--surface-1); color: var(--ink); border: 1px solid var(--rule); box-shadow: none;
+  }
+  button.secondary:hover { background: var(--surface-2); filter: none; box-shadow: none; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
   .btn-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 
   .spinner {
@@ -258,101 +275,150 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ledger-line clause text: ruled notebook effect */
   .ruled-text {
-    font-size: 18.6px; line-height: 28px; color: var(--ink);
-    border-left: 3px solid var(--maroon); padding: 0 0 0 16px; margin-top: 10px;
-    background-image: repeating-linear-gradient(var(--surface-3), var(--surface-3) 27px, var(--paper-line) 28px);
+    font-size: 17.1px; line-height: 1.7; color: var(--ink);
+    border-left: 3px solid var(--accent); padding: 10px 14px; margin-top: 10px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--surface-1);
     white-space: pre-wrap;
   }
   .clause-meta {
-    font-family: var(--sans); font-size: 13.4px; text-transform: uppercase; letter-spacing: 0.06em;
+    font-family: var(--sans); font-size: 13.2px; text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--ink-faint); margin-top: 6px;
   }
 
-  /* torn-tab stamp badges */
   .stamp {
     display: inline-flex; align-items: center; font-family: var(--sans); font-size: 12.8px; font-weight: 700;
-    padding: 3px 11px; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 2px;
+    padding: 3px 10px; letter-spacing: 0.03em; text-transform: uppercase; border-radius: 99px;
   }
-  .stamp.high { background: var(--maroon-soft); color: var(--maroon-bright); border: 1px solid var(--maroon-border); }
-  .stamp.medium { background: var(--ochre-soft); color: var(--ochre); border: 1px solid var(--ochre-border); }
-  .stamp.low { background: var(--olive-soft); color: var(--olive); border: 1px solid var(--olive-border); }
-  .stamp.gap { background: var(--ochre-soft); color: var(--ochre); border: 1px solid var(--ochre-border); }
+  .stamp.high { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-border); }
+  .stamp.medium { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn-border); }
+  .stamp.low { background: var(--good-soft); color: var(--good); border: 1px solid var(--good-border); }
+  .stamp.gap { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn-border); }
   .stamp.neutral { background: var(--surface-1); color: var(--ink-soft); border: 1px solid var(--rule); }
 
-  /* side annotation panel, evokes a margin note */
-  .annotation-row { display: flex; gap: 22px; }
-  .annotation-main { flex: 1; }
+  .annotation-row { display: flex; gap: 20px; }
+  .annotation-main { flex: 1; min-width: 0; }
   .annotation-side {
-    width: 210px; border-left: 1px dashed var(--rule); padding-left: 20px; flex-shrink: 0;
+    width: 220px; border-left: 1px solid var(--paper-line); padding-left: 18px; flex-shrink: 0;
   }
-  .annotation-side .label { font-family: var(--sans); font-size: 13.4px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-faint); margin: 12px 0 4px; }
-  .annotation-side .value { font-family: var(--mono); font-size: 24.3px; color: var(--maroon-bright); }
+  .annotation-side .label { font-family: var(--sans); font-size: 12.9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); margin: 12px 0 4px; }
+  .annotation-side .value { font-family: var(--mono); font-size: 23.5px; font-weight: 700; color: var(--accent-bright); }
 
-  /* docket / summary tiles */
+  /* stat tiles */
   .docket-strip {
-    display: flex; font-family: var(--sans); border: 1px solid var(--rule); border-radius: 2px;
-    margin-bottom: 22px; background: var(--surface-3); overflow: hidden;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); font-family: var(--sans);
+    gap: 12px; margin-bottom: 18px;
   }
   .docket-item {
-    flex: 1; padding: 14px 18px; border-right: 1px solid var(--paper-line); text-align: left;
+    padding: 16px 18px; border-radius: var(--radius); background: var(--card-bg); border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-1); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
-  .docket-item:last-child { border-right: none; }
-  .docket-item .num { font-family: var(--mono); font-size: 26.9px; color: var(--ink); font-variant-numeric: tabular-nums; }
-  .docket-item .num.flag { color: var(--maroon-bright); }
-  .docket-item .num.gap { color: var(--ochre); }
-  .docket-item .cap { font-size: 12.8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); margin-top: 3px; }
+  .docket-item .num { font-family: var(--sans); font-size: 29.1px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .docket-item .num.flag { color: var(--danger); }
+  .docket-item .num.gap { color: var(--warn); }
+  .docket-item .cap { font-size: 13.1px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); margin-top: 3px; }
 
   hr.rule { border: none; border-top: 1px solid var(--paper-line); margin: 14px 0; }
 
-  .final-answer { white-space: pre-wrap; line-height: 1.75; font-size: 19.2px; font-family: var(--serif); color: var(--ink); }
+  .final-answer { white-space: pre-wrap; line-height: 1.65; font-size: 16.8px; font-family: var(--sans); color: var(--ink); }
 
   pre.raw {
-    background: var(--raw-bg); color: var(--raw-ink); padding: 14px; border-radius: 2px; overflow-x: auto;
-    font-size: 14.7px; line-height: 1.55; max-height: 320px; font-family: var(--mono); border: 1px solid var(--rule);
+    background: var(--raw-bg); color: var(--raw-ink); padding: 14px; border-radius: var(--radius-sm); overflow-x: auto;
+    font-size: 14.6px; line-height: 1.55; max-height: 320px; font-family: var(--mono); border: 1px solid var(--rule);
   }
-  details summary { cursor: pointer; font-family: var(--sans); font-size: 14.7px; color: var(--ink-soft); }
+  details summary { cursor: pointer; font-family: var(--sans); font-size: 15.2px; color: var(--ink-soft); }
 
   .notice {
-    font-family: var(--sans); padding: 11px 15px; border-radius: 2px; margin: 12px 0; font-size: 16px; font-weight: 600;
+    font-family: var(--sans); padding: 11px 15px; border-radius: var(--radius-sm); margin: 12px 0; font-size: 15.7px; font-weight: 600;
   }
-  .notice.error { background: var(--maroon-soft); color: var(--maroon-bright); border: 1px solid var(--maroon-border); }
-  .notice.info { background: var(--olive-soft); color: var(--olive); border: 1px solid var(--olive-border); }
+  .notice.error { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-border); }
+  .notice.info { background: var(--good-soft); color: var(--good); border: 1px solid var(--good-border); }
 
   .empty-note {
-    font-family: var(--sans); text-align: center; padding: 34px 20px; color: var(--ink-faint); font-size: 16px;
+    font-family: var(--sans); text-align: center; padding: 34px 20px; color: var(--ink-faint); font-size: 16.2px;
   }
 
-  /* audit timeline as a docket log */
   .docket-log-item {
     display: grid; grid-template-columns: 96px 1fr; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--paper-line);
   }
   .docket-log-item:last-child { border-bottom: none; }
   .docket-log-time { font-family: var(--mono); font-size: 13.4px; color: var(--ink-faint); padding-top: 2px; }
-  .docket-log-action { font-family: var(--sans); font-size: 16.6px; font-weight: 700; color: var(--ink); }
-  .docket-log-details { font-family: var(--sans); font-size: 15.4px; color: var(--ink-soft); margin-top: 3px; }
+  .docket-log-action { font-family: var(--sans); font-size: 16.2px; font-weight: 700; color: var(--ink); }
+  .docket-log-details { font-family: var(--sans); font-size: 15.2px; color: var(--ink-soft); margin-top: 3px; }
 
-  ::selection { background: var(--maroon-border); color: var(--select-ink); }
+  ::selection { background: var(--accent-border); color: var(--select-ink); }
+
+  /* ---------- chat widget (Ask CounselGraph), sticky bottom-right ---------- */
+  .chat-launcher {
+    position: fixed; bottom: 22px; right: 22px; z-index: 50;
+    width: 56px; height: 56px; border-radius: 50%; background: var(--accent-grad); color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; border: none;
+    box-shadow: var(--shadow-2), 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+    font-size: 24.6px;
+    animation: chatPulse 3.5s ease-in-out infinite;
+  }
+  .chat-launcher:hover { filter: brightness(1.08); animation-play-state: paused; }
+  @keyframes chatPulse {
+    0%, 100% { box-shadow: var(--shadow-2), 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+    50% { box-shadow: var(--shadow-2), 0 0 0 8px color-mix(in srgb, var(--accent) 0%, transparent); }
+  }
+  .chat-panel {
+    position: fixed; bottom: 90px; right: 22px; z-index: 50; width: 380px; max-width: calc(100vw - 32px);
+    max-height: min(640px, calc(100vh - 130px)); display: none; flex-direction: column;
+    background: var(--card-bg); -webkit-backdrop-filter: blur(24px) saturate(140%); backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid var(--glass-border); border-radius: var(--radius); box-shadow: var(--shadow-2); overflow: hidden;
+  }
+  .chat-panel.open { display: flex; }
+  .chat-panel-header {
+    padding: 14px 16px; border-bottom: 1px solid var(--rule); font-family: var(--sans);
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  }
+  .chat-panel-title { font-size: 15.5px; font-weight: 700; color: var(--ink); }
+  .chat-panel-subtitle { font-size: 13.0px; color: var(--ink-faint); margin-top: 2px; }
+  .chat-panel-close { background: none; border: none; box-shadow: none; color: var(--ink-faint); font-size: 20.2px; cursor: pointer; padding: 2px 6px; }
+  .chat-panel-close:hover { color: var(--ink); background: none; filter: none; }
+  .chat-panel-body { flex: 1; overflow-y: auto; padding: 14px 16px; font-family: var(--sans); font-size: 15.5px; }
+  .chat-panel-footer { padding: 12px; border-top: 1px solid var(--rule); flex-shrink: 0; }
+  .chat-panel-footer textarea { min-height: 44px; font-size: 15.5px; }
+  .chat-empty { color: var(--ink-faint); font-size: 15.0px; text-align: center; padding: 30px 10px; }
+  .chat-doc-context { font-size: 13.0px; color: var(--ink-faint); padding: 6px 0 10px; }
 
   @media (max-width: 760px) {
-    .masthead { flex-direction: column; align-items: flex-start; gap: 8px; }
     .row, .annotation-row { flex-direction: column; }
-    .annotation-side { width: auto; border-left: none; border-top: 1px dashed var(--rule); padding-left: 0; padding-top: 14px; }
-    .docket-strip { flex-wrap: wrap; }
-    .docket-item { flex: 1 1 50%; border-bottom: 1px solid var(--paper-line); }
-    .view { padding: 22px 18px 50px; }
+    .annotation-side { width: auto; border-left: none; border-top: 1px solid var(--paper-line); padding-left: 0; padding-top: 14px; }
+    .view { padding: 20px 16px 50px; }
+    .chat-panel { right: 12px; left: 12px; width: auto; }
+    .chat-launcher { right: 16px; bottom: 16px; }
   }
   .login-screen {
     min-height: 100vh; display: flex; align-items: center; justify-content: center;
     background: var(--bg-deep);
+    background-image:
+      radial-gradient(1100px 560px at 8% -8%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 60%),
+      radial-gradient(900px 520px at 96% 0%, color-mix(in srgb, #c9932e 18%, transparent), transparent 55%);
   }
   .login-card {
-    width: 100%; max-width: 380px; background: var(--exhibit-bg); border: 1px solid var(--rule);
-    padding: 32px 30px; position: relative;
+    width: 100%; max-width: 400px; background: var(--card-bg); border: 1px solid var(--glass-border);
+    border-radius: 20px; padding: 38px 34px; position: relative; box-shadow: var(--shadow-2);
+    -webkit-backdrop-filter: blur(24px) saturate(150%); backdrop-filter: blur(24px) saturate(150%);
+    isolation: isolate; overflow: hidden;
   }
-  .login-card h1 { font-size: 24px; font-weight: 400; margin: 0 0 6px; color: var(--heading-ink); }
-  .login-card .sub { font-family: var(--sans); font-size: 14px; color: var(--ink-soft); margin-bottom: 22px; }
+  .login-card::before {
+    content: ""; position: absolute; inset: -60%; z-index: -2; opacity: 0.55;
+    background: conic-gradient(from 0deg, var(--accent), #c9932e, var(--accent));
+    filter: blur(50px); animation: loginGlow 10s linear infinite;
+  }
+  .login-card::after {
+    content: ""; position: absolute; inset: 1px; z-index: -1; border-radius: 19px; background: var(--popover-bg);
+  }
+  @keyframes loginGlow { to { transform: rotate(360deg); } }
+  .login-mark {
+    width: 46px; height: 46px; border-radius: 14px; background: var(--accent-grad); margin-bottom: 18px;
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 50%, transparent);
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
+  .login-card h1 { font-size: 27.5px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.02em; color: var(--heading-ink); }
+  .login-card .sub { font-family: var(--sans); font-size: 15.2px; color: var(--ink-soft); margin-bottom: 22px; }
   .login-card label.field-label { margin: 12px 0 6px; }
   .login-card label.field-label.first { margin-top: 0; }
   .login-card .btn-row { margin-top: 20px; }
@@ -363,8 +429,9 @@
 
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
-    <h1>Register of Legal Documents</h1>
-    <div class="sub">Sign in to continue.</div>
+    <div class="login-mark">&#9670;</div>
+    <h1>CounselGraph</h1>
+    <div class="sub">AI-assisted legal document review. Sign in to continue.</div>
     <label class="field-label first">Username</label>
     <input type="text" id="loginUsername" autocomplete="username" />
     <label class="field-label">Password</label>
@@ -378,43 +445,40 @@
 </div>
 
 <div class="folio" id="appFolio" style="display:none;">
-  <div class="masthead">
-    <div class="title-block">
-      <h1>Register of Legal Documents</h1>
-      <span class="matter-no">Legal GraphRAG</span>
-    </div>
-    <div style="display:flex; align-items:center;">
-      <div class="status-pill" id="healthPill"><span class="dot"></span><span id="healthText">checking&hellip;</span></div>
-      <button class="secondary theme-toggle" id="themeToggleApp" type="button">Light</button>
-    </div>
-  </div>
-
-  <div class="tab-row">
-    <div class="tab active" data-view="upload">1. Upload Workspace</div>
-    <div class="tab" data-view="status">2. Processing Status</div>
-    <div class="tab" data-view="review">3. Review Workspace</div>
-    <div class="tab" data-view="portfolio">4. Portfolio &amp; Risk Console</div>
-    <div class="tab" data-view="approval">5. Approval &amp; Escalation</div>
-    <div class="tab" data-view="dashboard">6. Legal Operations Dashboard</div>
-  </div>
-
-  <div class="apikey-row">
-    <div class="profile-menu">
-      <button class="profile-trigger" id="profileTrigger" type="button" aria-haspopup="true" aria-expanded="false">
-        <span class="profile-avatar" id="profileAvatar">?</span>
-        <span class="profile-trigger-text">
-          <span class="profile-trigger-name" id="profileName">signed in</span>
-          <span class="profile-trigger-role" id="profileRole"></span>
-        </span>
-        <span class="profile-caret">&#9662;</span>
-      </button>
-      <div class="profile-dropdown" id="profileDropdown">
-        <div class="profile-dropdown-header">
-          <div class="profile-trigger-name" id="profileDropdownName"></div>
-          <div class="profile-trigger-role" id="profileDropdownRole"></div>
-        </div>
-        <button class="profile-dropdown-item" id="logoutButton" type="button">Log out</button>
+  <div class="topbar">
+    <div class="topbar-row1">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <span class="brand-name">CounselGraph</span>
       </div>
+      <div class="topbar-right">
+      <button class="secondary theme-toggle" id="themeToggleApp" type="button">Light</button>
+      <div class="profile-menu">
+        <button class="profile-trigger" id="profileTrigger" type="button" aria-haspopup="true" aria-expanded="false">
+          <span class="profile-avatar" id="profileAvatar">?</span>
+          <span class="profile-trigger-text">
+            <span class="profile-trigger-name" id="profileName">signed in</span>
+            <span class="profile-trigger-role" id="profileRole"></span>
+          </span>
+          <span class="profile-caret">&#9662;</span>
+        </button>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="profile-dropdown-header">
+            <div class="profile-trigger-name" id="profileDropdownName"></div>
+            <div class="profile-trigger-role" id="profileDropdownRole"></div>
+          </div>
+          <button class="profile-dropdown-item" id="logoutButton" type="button">Log out</button>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="tab-row">
+      <div class="tab active" data-view="upload">Upload</div>
+      <div class="tab" data-view="status">Processing</div>
+      <div class="tab" data-view="review">Review</div>
+      <div class="tab" data-view="portfolio">Portfolio &amp; Risk</div>
+      <div class="tab" data-view="approval">Approval &amp; Escalation</div>
+      <div class="tab" data-view="dashboard">Operations Dashboard</div>
     </div>
   </div>
 
@@ -434,7 +498,7 @@
     <div class="doc-sub">Submit a contract for first-pass review. Provide the org profile and document context up front, since these drive which clauses are expected, which risk thresholds apply, and how the document is routed for review.</div>
 
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit A &middot; Submission</span>
+      <span class="exhibit-label">Submission</span>
       <h3>Document to Review</h3>
       <label class="field-label first">File (PDF or DOCX)</label>
       <input type="file" id="ingestFile" accept="application/pdf,.docx" />
@@ -504,12 +568,13 @@
   <!-- 4. PORTFOLIO & RISK CONSOLE -->
   <div class="view" id="view-portfolio">
    <div class="view-inner">
-    <div class="doc-title">Portfolio and Risk Console</div>
+    <div class="doc-title">Portfolio &amp; Risk Console</div>
     <div class="doc-sub">Finds clauses of the same type across different documents under the same org profile or counterparty with materially different terms (e.g. a termination notice period that differs by more than two weeks), so a conflict buried in two unrelated contracts doesn't go unnoticed.</div>
 
+    <div id="portfolioOverview"><div class="docket-strip"><div class="docket-item"><div class="num">&hellip;</div><div class="cap">Loading portfolio stats</div></div></div></div>
+
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit D &middot; Scope</span>
-      <h3>Compare By</h3>
+      <h3>Compare by org profile or counterparty</h3>
       <div class="row">
         <div>
           <label class="field-label first">Org profile</label>
@@ -525,27 +590,28 @@
       </div>
     </div>
 
-    <div id="portfolioResult"></div>
+    <div id="portfolioResult"><div class="empty-note">Choose an org profile and/or counterparty above, then click Find Conflicts to compare clauses across documents in that scope.</div></div>
    </div>
   </div>
 
   <!-- 5. APPROVAL & ESCALATION -->
   <div class="view" id="view-approval">
    <div class="view-inner">
-    <div class="doc-title">Approval and Escalation</div>
-    <div class="doc-sub">Record accept/edit/reject/escalate/comment decisions, and look up the full docket log for any job. Reviewer identity and role are read from your session, not typed in freehand.</div>
+    <div class="doc-title">Approval &amp; Escalation</div>
+    <div class="doc-sub">Record accept/edit/reject/escalate/comment decisions, and look up the full processing history for any job. Reviewer identity and role are read from your session, not typed in freehand.</div>
+
+    <div id="approvalOverview"><div class="docket-strip"><div class="docket-item"><div class="num">&hellip;</div><div class="cap">Loading approval stats</div></div></div></div>
 
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit C &middot; Lookup</span>
-      <h3>Job Reference</h3>
+      <h3>Look up a job</h3>
       <label class="field-label first">job_id or query_job_id</label>
       <input type="text" id="auditJobId" placeholder="paste a job_id from an intake or inquiry response" />
       <div class="btn-row">
-        <button id="auditSubmit">Retrieve Docket</button>
+        <button id="auditSubmit">Retrieve History</button>
       </div>
     </div>
 
-    <div id="auditResult"></div>
+    <div id="auditResult"><div class="empty-note">Look up a job above to see its processing history and reviewer decisions.</div></div>
    </div>
   </div>
 
@@ -556,7 +622,7 @@
     <div class="doc-sub">Executive summary first, then risk flags with deviation scores and confidence breakdowns, then clause-by-clause detail, then a negotiation playbook per flagged clause, then a question box for this document at the very bottom.</div>
 
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit A-0 &middot; Lookup</span>
+      <span class="exhibit-label">Lookup</span>
       <h3>Open a Document</h3>
       <label class="field-label first">Document ID</label>
       <input type="text" id="documentDetailId" placeholder="paste a document_id, or leave blank to use the document above" />
@@ -566,28 +632,14 @@
     </div>
 
     <div id="reviewResult"><div class="empty-note">Submit a document on the Upload Workspace screen to review it here once the pipeline pauses for approval.</div></div>
-
-    <div class="exhibit">
-      <span class="exhibit-label">Exhibit B &middot; Ask About This Document</span>
-      <h3>Ask a Question</h3>
-      <label class="field-label first">What do you want to know?</label>
-      <textarea id="askQuestion" placeholder="Enter your question about the document"></textarea>
-      <label class="field-label">Collection name</label>
-      <input type="text" id="askCollection" placeholder="Name used when the document was submitted" />
-      <div class="btn-row">
-        <button id="askSubmit">Ask</button>
-      </div>
-    </div>
-
-    <div id="askResult"></div>
    </div>
   </div>
 
   <!-- OPERATIONS DASHBOARD VIEW -->
   <div class="view" id="view-dashboard">
    <div class="view-inner">
-    <div class="doc-title">Legal Operations Dashboard</div>
-    <div class="doc-sub">Aggregate throughput, approval outcomes, and risk categories across every document and question processed by the register.</div>
+    <div class="doc-title">Operations Dashboard</div>
+    <div class="doc-sub">Aggregate throughput, approval outcomes, and risk categories across every document and question processed.</div>
 
     <div class="btn-row" style="margin-top:0; margin-bottom:18px;">
       <button class="secondary" id="dashboardRefresh">Refresh</button>
@@ -596,7 +648,7 @@
     <div id="dashboardResult"></div>
 
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit E &middot; Evaluation Matrix</span>
+      <span class="exhibit-label">Evaluation</span>
       <h3>Extraction Quality Against Labeled Eval Set</h3>
       <div class="doc-sub" style="margin-bottom:14px;">Clause recall, risk-flag precision, and missing-clause detection accuracy, scored against tests/eval/labeled_eval_set.json. Cached from the last manual refresh, since a live run makes real LLM calls per document.</div>
       <div class="btn-row" style="margin-top:0;">
@@ -605,6 +657,26 @@
       <div id="evalResult"></div>
     </div>
    </div>
+  </div>
+</div>
+
+<button class="chat-launcher" id="chatLauncher" type="button" aria-label="Ask CounselGraph about this document">&#128172;</button>
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-panel-header">
+    <div>
+      <div class="chat-panel-title">Ask CounselGraph</div>
+      <div class="chat-panel-subtitle" id="chatDocLabel">No document selected</div>
+    </div>
+    <button class="chat-panel-close" id="chatPanelClose" type="button" aria-label="Close">&times;</button>
+  </div>
+  <div class="chat-panel-body" id="askResult">
+    <div class="chat-empty">Load or upload a document, then ask a question about it here.</div>
+  </div>
+  <div class="chat-panel-footer">
+    <textarea id="askQuestion" placeholder="Ask a question about the selected document&hellip;"></textarea>
+    <div class="btn-row" style="margin-top:8px;">
+      <button id="askSubmit" style="width:100%;">Ask</button>
+    </div>
   </div>
 </div>
 
@@ -676,6 +748,7 @@ async function showApp() {
   // refresh, or opening a ?document=<id> link) instead of starting blank
   renderDocHeader();
   applyReadOnlyDocumentFields();
+  renderChatDocLabel();
   if (currentDocument.documentId && !currentDocument.docMeta) {
     try {
       await loadDocumentDetailInto(currentDocument.documentId, document.getElementById("reviewResult"));
@@ -731,7 +804,6 @@ document.getElementById("loginSubmit").addEventListener("click", async () => {
     });
     document.getElementById("loginPassword").value = "";
     showApp();
-    checkHealth();
   } catch (e) {
     errorEl.textContent = "Invalid username or password.";
     errorEl.style.display = "block";
@@ -749,28 +821,13 @@ document.getElementById("logoutButton").addEventListener("click", async () => {
   showLogin();
 });
 
-async function checkHealth() {
-  const pill = document.getElementById("healthPill");
-  const text = document.getElementById("healthText");
-  try {
-    const res = await fetch(API_BASE + "/health");
-    if (!res.ok) throw new Error("unreachable");
-    pill.classList.add("online");
-    text.textContent = "register open";
-  } catch (e) {
-    pill.classList.remove("online");
-    text.textContent = "unreachable";
-  }
-}
-checkHealth();
-setInterval(checkHealth, 15000);
-
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
     document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
     tab.classList.add("active");
     document.getElementById("view-" + tab.dataset.view).classList.add("active");
+    renderDocHeader();
   });
 });
 
@@ -854,7 +911,12 @@ function confidentialityLabel(level) {
 function renderDocHeader() {
   const header = document.getElementById("docHeader");
   if (!header) return;
-  if (!currentDocument.documentId && !currentDocument.documentName && !currentDocument.jobId) {
+  // Upload Workspace is for starting a *new* document, so showing "here's the
+  // document you already have loaded" there reads as if it's about to upload
+  // into/over that document -- hide the header on that one tab only.
+  const activeTab = document.querySelector(".tab.active");
+  const onUploadTab = activeTab && activeTab.dataset.view === "upload";
+  if (onUploadTab || (!currentDocument.documentId && !currentDocument.documentName && !currentDocument.jobId)) {
     header.style.display = "none";
     return;
   }
@@ -882,7 +944,6 @@ function applyReadOnlyDocumentFields() {
   // freeform inputs -- changing the selected document is a deliberate action
   // (the "Change document" button), not an incidental edit to a text box
   const bindings = [
-    { input: "askCollection", value: currentDocument.collectionName },
     { input: "auditJobId", value: currentDocument.jobId },
     { input: "documentDetailId", value: currentDocument.documentId },
   ];
@@ -906,6 +967,7 @@ function setCurrentDocument(fields) {
   persistCurrentDocument();
   renderDocHeader();
   applyReadOnlyDocumentFields();
+  renderChatDocLabel();
 }
 
 function clearCurrentDocument() {
@@ -913,15 +975,16 @@ function clearCurrentDocument() {
   persistCurrentDocument();
   renderDocHeader();
   applyReadOnlyDocumentFields();
+  renderChatDocLabel();
 
   // drop anything still on screen (and the in-flight thread reference) from
   // the previous document, so switching documents can't leave a stale answer
   // or audit result that looks like it belongs to the newly-selected one
   askThreadId = null;
   const askResult = document.getElementById("askResult");
-  if (askResult) askResult.innerHTML = "";
+  if (askResult) askResult.innerHTML = `<div class="chat-empty">Load or upload a document, then ask a question about it here.</div>`;
   const auditResult = document.getElementById("auditResult");
-  if (auditResult) auditResult.innerHTML = "";
+  if (auditResult) auditResult.innerHTML = `<div class="empty-note">Look up a job above to see its processing history and reviewer decisions.</div>`;
   const reviewResult = document.getElementById("reviewResult");
   if (reviewResult) reviewResult.innerHTML = `<div class="empty-note">Submit a document on the Upload Workspace screen to review it here once the pipeline pauses for approval.</div>`;
 }
@@ -931,7 +994,7 @@ function renderExecutiveSummary(ctx) {
   if (!ctx || !ctx.executive_summary) return "";
   return `
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit A-0 &middot; Executive Summary</span>
+      <span class="exhibit-label">Summary</span>
       <h3>Executive Summary</h3>
       <div class="final-answer">${escapeHtml(ctx.executive_summary)}</div>
     </div>
@@ -953,7 +1016,7 @@ function renderIngestPayload(payload) {
     </div>
 
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit A-1 &middot; Particulars</span>
+      <span class="exhibit-label">Details</span>
       <h3>Document Context</h3>
       <div class="clause-meta">${escapeHtml(ctx.document_name || "")} &middot; Job ${escapeHtml(payload.job_id || "")}</div>
       <div class="row" style="margin-top:12px;">
@@ -966,7 +1029,7 @@ function renderIngestPayload(payload) {
   `;
 
   if ((payload.missing_clauses || []).length) {
-    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-2 &middot; Gaps</span><h3>Missing Clauses</h3>`;
+    html += `<div class="exhibit"><span class="exhibit-label">Gaps</span><h3>Missing Clauses</h3>`;
     for (const m of payload.missing_clauses) {
       html += `
         <div style="margin-bottom:12px;">
@@ -979,7 +1042,7 @@ function renderIngestPayload(payload) {
   }
 
   if ((payload.high_risk_flags || []).length) {
-    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-3 &middot; Risk</span><h3>High-Risk Flags</h3>`;
+    html += `<div class="exhibit"><span class="exhibit-label">Risk</span><h3>High-Risk Flags</h3>`;
     for (const f of payload.high_risk_flags) {
       const dev = f.deviation;
       const cb = f.confidence_breakdown;
@@ -1030,7 +1093,7 @@ function renderIngestPayload(payload) {
   }
 
   if ((payload.conflicts || []).length) {
-    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-4 &middot; Contradictions</span><h3>Conflicting Clauses</h3>`;
+    html += `<div class="exhibit"><span class="exhibit-label">Contradictions</span><h3>Conflicting Clauses</h3>`;
     for (const c of payload.conflicts) {
       html += `
         <div style="margin-bottom:16px;">
@@ -1048,7 +1111,7 @@ function renderIngestPayload(payload) {
 
   html += `
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit A-5 &middot; Disposition</span>
+      <span class="exhibit-label">Decision</span>
       <h3>Reviewer Decision</h3>
       <div class="row">
         <div>
@@ -1080,6 +1143,7 @@ function switchToView(viewName) {
   const tab = document.querySelector(`.tab[data-view="${viewName}"]`);
   if (tab) tab.classList.add("active");
   document.getElementById("view-" + viewName).classList.add("active");
+  renderDocHeader();
 }
 
 async function handleIngestResponse(resp) {
@@ -1121,7 +1185,7 @@ async function handleIngestResponse(resp) {
     const stampClass = status === "approved" ? "low" : status === "escalated" ? "medium" : "high";
     out.innerHTML = renderExecutiveSummary(ctx) + `
       <div class="exhibit">
-        <span class="exhibit-label">Docket Entry &middot; Closed</span>
+        <span class="exhibit-label">Complete</span>
         <h3>Job Complete</h3>
         <span class="stamp ${stampClass}">${escapeHtml(status || "done")}</span>
         <div class="btn-row">
@@ -1232,7 +1296,7 @@ function renderProcessingStatus(activeIndex, reviewed) {
   }).join("");
   return `
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit A-0 &middot; Processing Status</span>
+      <span class="exhibit-label">Progress</span>
       <h3>Pipeline Progress</h3>
       ${rows}
     </div>
@@ -1304,7 +1368,7 @@ function renderPlaybookBlock(pb) {
 function renderDocumentDetail(doc) {
   let html = `
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit A-1 &middot; Particulars</span>
+      <span class="exhibit-label">Details</span>
       <h3>Document Detail</h3>
       <div class="clause-meta">${escapeHtml(doc.filename || "")} &middot; Document ${escapeHtml(doc.document_id || "")}</div>
       <div class="row" style="margin-top:12px;">
@@ -1321,7 +1385,7 @@ function renderDocumentDetail(doc) {
   if (doc.executive_summary) {
     html += `
       <div class="exhibit">
-        <span class="exhibit-label">Exhibit A-0 &middot; Executive Summary</span>
+        <span class="exhibit-label">Summary</span>
         <h3>Executive Summary</h3>
         <div class="final-answer">${escapeHtml(doc.executive_summary)}</div>
       </div>
@@ -1332,7 +1396,7 @@ function renderDocumentDetail(doc) {
   const flaggedClauses = clauses.filter(c => (c.risk_flags || []).length);
 
   if (flaggedClauses.length) {
-    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-3 &middot; Risk</span><h3>Risk Flags</h3>`;
+    html += `<div class="exhibit"><span class="exhibit-label">Risk</span><h3>Risk Flags</h3>`;
     for (const c of flaggedClauses) {
       for (const f of c.risk_flags) {
         html += `
@@ -1379,7 +1443,7 @@ function renderDocumentDetail(doc) {
   }
 
   if (clauses.length) {
-    html += `<div class="exhibit"><span class="exhibit-label">Exhibit A-6 &middot; Clauses</span><h3>All Clauses</h3>`;
+    html += `<div class="exhibit"><span class="exhibit-label">Clauses</span><h3>All Clauses</h3>`;
     for (const c of clauses) {
       html += `
         <div style="margin-bottom:14px;">
@@ -1394,12 +1458,22 @@ function renderDocumentDetail(doc) {
   return html;
 }
 
+// Matches main.py's start_ingestion_job: resolved_collection_name = collection_name
+// or re.sub(r"\W+", "_", document_name). collection_name itself isn't persisted on
+// the Document row, so this is the only way to recover it once a document is
+// loaded some way other than "just finished uploading" (by ID, or resuming a
+// paused job) -- it'll be wrong if a future backend change alters that derivation.
+function deriveCollectionNameFromFilename(filename) {
+  return (filename || "").replace(/[^A-Za-z0-9_]+/g, "_");
+}
+
 async function loadDocumentDetailInto(documentId, out) {
   const doc = await apiFetch(`/api/documents/${encodeURIComponent(documentId)}`);
   setCurrentDocument({
     documentId: doc.document_id,
     documentName: doc.filename,
     jobId: doc.job_id || currentDocument.jobId,
+    collectionName: currentDocument.collectionName || deriveCollectionNameFromFilename(doc.filename),
     docMeta: {
       status: doc.status, org_profile_id: doc.org_profile_id, counterparty: doc.counterparty,
       document_type: doc.document_type, confidentiality_level: doc.confidentiality_level,
@@ -1445,6 +1519,25 @@ async function loadOrgProfiles() {
 }
 
 // ============================= Portfolio & Risk Console =============================
+
+// Same GET /api/dashboard/stats already used by the Operations Dashboard --
+// reused here for a quick "at a glance" strip so this view isn't just a bare
+// lookup form with nothing else on screen until a search is run.
+async function loadPortfolioOverview() {
+  const out = document.getElementById("portfolioOverview");
+  try {
+    const stats = await apiFetch("/api/dashboard/stats");
+    out.innerHTML = `
+      <div class="docket-strip">
+        <div class="docket-item"><div class="num">${stats.total_contracts ?? 0}</div><div class="cap">Documents in Portfolio</div></div>
+        <div class="docket-item"><div class="num gap">${stats.conflicting_clause_pairs ?? 0}</div><div class="cap">Known Conflicting Pairs</div></div>
+        <div class="docket-item"><div class="num gap">${stats.missing_clause_flags ?? 0}</div><div class="cap">Missing-Clause Flags</div></div>
+      </div>
+    `;
+  } catch (e) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  }
+}
 
 document.getElementById("portfolioSubmit").addEventListener("click", async () => {
   const orgProfileId = document.getElementById("portfolioOrgProfile").value;
@@ -1500,7 +1593,7 @@ function renderEvidencePayload(payload) {
   const v = payload.evidence_verdict || {};
   return `
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit B-1 &middot; Verdict</span>
+      <span class="exhibit-label">Evidence Review</span>
       <h3>Evidence Verdict</h3>
       <span class="stamp ${v.sufficient ? 'low' : 'medium'}">${v.sufficient ? "Sufficient" : "Insufficient"}</span>
       <div class="clause-meta" style="margin-top:10px; text-transform:none; letter-spacing:0;">${escapeHtml(v.reasoning || "")}</div>
@@ -1508,12 +1601,11 @@ function renderEvidencePayload(payload) {
       ${(v.contradictions || []).length ? `<hr class="rule"><div class="clause-meta" style="margin-bottom:2px;">Contradictions</div><div>${v.contradictions.map(escapeHtml).join("; ")}</div>` : ""}
     </div>
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit B-2 &middot; Evidence</span>
       <h3>Retrieved Evidence</h3>
       <pre class="raw">${escapeHtml(JSON.stringify({ hybrid_hits: payload.hybrid_hits, graph_hits: payload.graph_hits }, null, 2))}</pre>
     </div>
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit B-3 &middot; Disposition</span>
+      <span class="exhibit-label">Decision</span>
       <h3>Reviewer Decision</h3>
       <div class="row">
         <div>
@@ -1543,7 +1635,6 @@ function renderAnswerPayload(payload) {
   const riskStamp = risk ? `<span class="stamp ${escapeHtml(risk)}">${escapeHtml(risk)} risk</span>` : "";
   return `
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit B-4 &middot; Draft</span>
       <h3>Draft Answer</h3>
       <div style="margin-bottom:10px;">${riskStamp} ${payload.draft_has_uncertainty ? '<span class="stamp medium">uncertainty flagged</span>' : ""}</div>
       <div class="clause-meta">Revision round ${payload.revision_round ?? 0} of ${payload.max_answer_revisions ?? "?"}</div>
@@ -1551,7 +1642,7 @@ function renderAnswerPayload(payload) {
       ${(payload.draft_citations || []).length ? `<hr class="rule"><div class="clause-meta" style="margin-bottom:2px;">Citations</div><div>${payload.draft_citations.map(escapeHtml).join("; ")}</div>` : ""}
     </div>
     <div class="exhibit">
-      <span class="exhibit-label">Exhibit B-5 &middot; Disposition</span>
+      <span class="exhibit-label">Decision</span>
       <h3>Reviewer Decision</h3>
       <label class="field-label first">Action</label>
       <select id="answerAction">
@@ -1594,7 +1685,7 @@ async function handleAskResponse(resp) {
     const answer = resp.result && resp.result.final_answer;
     const status = resp.result && resp.result.status;
     out.innerHTML = answer
-      ? `<div class="exhibit"><span class="exhibit-label">Docket Entry &middot; Answered</span><h3>Final Answer</h3><div class="final-answer">${escapeHtml(answer)}</div></div>`
+      ? `<div class="exhibit"><span class="exhibit-label">Answered</span><h3>Final Answer</h3><div class="final-answer">${escapeHtml(answer)}</div></div>`
       : `<div class="notice info">Completed. No answer returned (status: ${escapeHtml(status)}).</div>`;
   }
 }
@@ -1650,17 +1741,19 @@ async function submitAnswerDecision() {
 
 document.getElementById("askSubmit").addEventListener("click", async () => {
   const question = document.getElementById("askQuestion").value.trim();
-  const collection = document.getElementById("askCollection").value.trim();
-  if (!question || !collection) { alert("Question and collection name are both required."); return; }
+  const collection = currentDocument.collectionName;
+  if (!question) { alert("Enter a question first."); return; }
+  if (!collection) { alert("Select or upload a document first (use the \"Change document\" control, or the Upload Workspace tab) -- the chat needs to know which document's collection to search."); return; }
   const btn = document.getElementById("askSubmit");
   btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span>Consulting the record&hellip;`;
+  btn.innerHTML = `<span class="spinner"></span>Asking&hellip;`;
   document.getElementById("askResult").innerHTML = "";
   try {
     const resp = await apiFetch("/api/query/jobs", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, collection_name: collection }),
     });
+    document.getElementById("askQuestion").value = "";
     await handleAskResponse(resp);
   } catch (e) {
     document.getElementById("askResult").innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
@@ -1670,7 +1763,50 @@ document.getElementById("askSubmit").addEventListener("click", async () => {
   }
 });
 
-// ============================= Docket Log / Audit =============================
+document.getElementById("askQuestion").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById("askSubmit").click();
+  }
+});
+
+// ============================= Chat widget open/close =============================
+
+const chatLauncher = document.getElementById("chatLauncher");
+const chatPanel = document.getElementById("chatPanel");
+chatLauncher.addEventListener("click", () => {
+  chatPanel.classList.toggle("open");
+});
+document.getElementById("chatPanelClose").addEventListener("click", () => {
+  chatPanel.classList.remove("open");
+});
+
+function renderChatDocLabel() {
+  const label = document.getElementById("chatDocLabel");
+  if (!label) return;
+  label.textContent = currentDocument.documentName
+    ? `About: ${currentDocument.documentName}`
+    : "No document selected";
+}
+
+// ============================= Approval History / Audit =============================
+
+async function loadApprovalOverview() {
+  const out = document.getElementById("approvalOverview");
+  try {
+    const stats = await apiFetch("/api/dashboard/stats");
+    const risk = stats.risk_flags_by_level || {};
+    out.innerHTML = `
+      <div class="docket-strip">
+        <div class="docket-item"><div class="num flag">${risk.high ?? 0}</div><div class="cap">High-Risk Flags Outstanding</div></div>
+        <div class="docket-item"><div class="num">${risk.medium ?? 0}</div><div class="cap">Medium-Risk Flags</div></div>
+        <div class="docket-item"><div class="num">${risk.low ?? 0}</div><div class="cap">Low-Risk Flags</div></div>
+      </div>
+    `;
+  } catch (e) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  }
+}
 
 document.getElementById("auditSubmit").addEventListener("click", async () => {
   const jobId = document.getElementById("auditJobId").value.trim();
@@ -1681,7 +1817,7 @@ document.getElementById("auditSubmit").addEventListener("click", async () => {
   out.innerHTML = "";
   try {
     const resp = await apiFetch(`/api/audit/${encodeURIComponent(jobId)}`);
-    let html = `<div class="exhibit"><span class="exhibit-label">Exhibit C-1 &middot; Timeline</span><h3>Processing Log</h3>`;
+    let html = `<div class="exhibit"><span class="exhibit-label">Timeline</span><h3>Processing Log</h3>`;
     if (!resp.audit_trail.length) {
       html += `<div class="empty-note">No docket entries found for this job.</div>`;
     } else {
@@ -1700,7 +1836,7 @@ document.getElementById("auditSubmit").addEventListener("click", async () => {
     html += `</div>`;
 
     if (resp.reviewer_decisions.length) {
-      html += `<div class="exhibit"><span class="exhibit-label">Exhibit C-2 &middot; Decisions</span><h3>Reviewer Decisions</h3>`;
+      html += `<div class="exhibit"><span class="exhibit-label">Decisions</span><h3>Reviewer Decisions</h3>`;
       for (const d of resp.reviewer_decisions) {
         html += `
           <div style="margin-bottom:14px;">
@@ -1756,13 +1892,13 @@ async function loadDashboard() {
       </div>
 
       <div class="exhibit">
-        <span class="exhibit-label">Docket Summary &middot; Ingestion</span>
+        <span class="exhibit-label">Ingestion</span>
         <h3>Document Jobs by Status</h3>
         ${statusBreakdownRows(stats.document_jobs_by_status)}
       </div>
 
       <div class="exhibit">
-        <span class="exhibit-label">Docket Summary &middot; Inquiries</span>
+        <span class="exhibit-label">Inquiries</span>
         <h3>Question Jobs by Status</h3>
         ${statusBreakdownRows(stats.query_jobs_by_status)}
       </div>
@@ -1838,6 +1974,8 @@ document.getElementById("dashboardRefresh").addEventListener("click", loadDashbo
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
     if (tab.dataset.view === "dashboard") loadDashboard();
+    if (tab.dataset.view === "portfolio") loadPortfolioOverview();
+    if (tab.dataset.view === "approval") loadApprovalOverview();
   });
 });
 </script>

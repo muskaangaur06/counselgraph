@@ -3,8 +3,8 @@
 ## Repository
 - Path: D:\LegalAssistant
 - Branch: main
-- Latest commit: 3ff2821 (Add auth and profile menu), 4 commits ahead of origin/main, not pushed. Phase 3 changes below not committed yet.
-- Working tree: modified, see Phase 3 files below
+- Latest commit: e38dcdd (Add document header persistence), 5 commits ahead of origin/main, not pushed. Out-of-phase UI redesign work (below) not committed yet.
+- Working tree: modified, see UI Redesign section below
 - Last updated: 2026-08-12
 
 ## Environment
@@ -52,6 +52,21 @@
 - Files changed: src/legal_graphrag/api/static/index.html only (no backend changes this phase)
 - Focused tests: no new pytest tests (frontend-only change) -- verified with 3 scripted Playwright runs against the live container (see Phase 3 Decisions); full fast suite re-run for regression (31 passed, unaffected since no Python changed)
 - Blockers: none
+
+## Out-of-Phase: UI Redesign (user-directed, not blueprint-driven)
+- Requested directly by user after seeing Phase 3's screenshots: full visual overhaul (glass/gradient/glow, less wasted whitespace, tighter top bar), a floating chat widget replacing the inline "Ask a Question" box, and Portfolio/Approval views restructured to not look empty. Deviation recorded here per section 1.2 since this isn't a blueprint phase.
+- Files changed: src/legal_graphrag/api/static/index.html only.
+- Real bugs found and fixed along the way (not just cosmetic):
+  1. Confidentiality/org-profile/business-unit picked on the upload form weren't showing in the document header after upload -- handleIngestResponse never fetched the full Document row, only document_context (which lacks those fields). Fixed by calling loadDocumentDetailInto() right after upload/resume.
+  2. Chat ("Ask CounselGraph") rejected every question with "select a document first" even when a document WAS loaded, if that document was opened by ID or via a paused-job resume rather than a fresh upload -- collectionName was only ever set on the initial upload path. collection_name isn't persisted on the Document row at all (main.py derives it on the fly: `collection_name or re.sub(r"\W+", "_", document_name)`), so the frontend now replicates that exact derivation as a fallback (deriveCollectionNameFromFilename) whenever a document is loaded some other way. This is fragile -- a future backend change to that derivation would silently break it again. The real fix is to persist collection_name on Document; not done here, flagged as a gap below.
+  3. Profile dropdown visually collided with the "Change document" button in the header below it -- not a z-index bug, the dropdown's translucent glass background (~4.5% opacity in dark mode) let both texts show through simultaneously. Fixed by giving popovers (profile dropdown, and the login card's opaque backing layer) a dedicated fully-opaque --popover-bg token instead of reusing the glass --card-bg.
+- Removed: the "register open"/"unreachable" health-check pill entirely (user found it distracting/unnecessary); theme toggle relocated to sit directly beside the profile menu on the far right instead of its own separate slot.
+- Document header now hides itself specifically on the Upload Workspace tab (still shows on every other document-scoped tab) -- showing "here's your loaded document" while the form below is for starting a new one read as if uploading would overwrite it.
+- Verified with multiple scripted Playwright runs against the live container across both themes: login, document loading or header/read-only-field behavior, tab switching, profile dropdown, Portfolio/Approval stat strips, chat widget open/ask/label, and the three bug fixes above. Full pytest suite re-run each round (31 passed throughout, unaffected -- no Python changed).
+- Color palette went through two rounds per user feedback: first a blue/purple SaaS palette, then replaced entirely with a maroon+cream system (dark = near-black with deep maroon/crimson glow and gold secondary accent; light = warm buttery cream/gold with maroon as the bold accent) -- explicitly NOT a revival of the original muted brown/maroon courthouse theme, designed fresh to be dramatic rather than washed out. All copy stayed plain-English (no Exhibit/Docket language brought back), only CSS color tokens and two hardcoded gradient hex values changed.
+
+## Known Gap: collection_name not persisted on Document
+- `Document` has no `collection_name` column. It's computed transiently in main.py's start_ingestion_job and never stored, so the frontend has to re-derive it from the filename via the same regex whenever a document is loaded any way other than "just finished uploading." Fixed at the frontend layer for now (see UI Redesign section above); the correct fix is a small migration adding `collection_name` to `Document` and having `/api/documents/{id}` return it directly. Not done -- flagging for a future phase since it's backend schema work, not UI.
 
 ## Phase 3 Decisions
 - currentDocument was previously a plain in-memory JS variable with zero persistence -- a refresh lost the selected document entirely. Fixed with a dual mechanism: the document_id is written to the URL as ?document=<id> (shareable, and the source of truth on load) and the fuller context (jobId/collectionName/docMeta) is cached in localStorage. On load, if the URL names a document, it wins over any stale cached one; if only a stored context exists (no URL), that's restored into the URL via history.replaceState.
