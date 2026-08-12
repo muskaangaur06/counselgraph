@@ -236,6 +236,10 @@ class AuditLog(Base):
 
 
 class SummaryVersion(Base):
+    """Append-only, like AuditLog/ConfidentialityOverride -- every edit or restore
+    creates a NEW row, never mutates an existing one (section 14.1: "do not
+    overwrite approved summary history" applies to every version, not just
+    approved ones, since there's no update path here at all)."""
     __tablename__ = "summary_version"
 
     summary_version_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
@@ -243,6 +247,11 @@ class SummaryVersion(Base):
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     summary_text: Mapped[str] = mapped_column(Text, nullable=False)
     edited_by: Mapped[str] = mapped_column(String(100), nullable=True)
+    is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=True)  # explicit flag (section 14.1); edited_by is None for the initial AI pass, but a human "restore" also has edited_by set while still ultimately AI-authored text
+    approval_status: Mapped[str] = mapped_column(String(20), default="draft")  # draft/approved
+    approved_by: Mapped[str] = mapped_column(String(100), nullable=True)
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    restored_from_version: Mapped[int] = mapped_column(Integer, nullable=True)  # set when this version was created by restoring an earlier one
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     document: Mapped["Document"] = relationship(back_populates="summary_versions")

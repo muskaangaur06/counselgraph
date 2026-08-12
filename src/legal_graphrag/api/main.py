@@ -506,8 +506,12 @@ async def get_document_detail(document_id: str, reviewer: dict = Depends(get_cur
         _enforce_confidentiality_access(doc.confidentiality_level, reviewer["role"])
 
         from ..db.repository import get_summary_history, get_confidentiality_history
+        # bug fix: this used to read summary_versions[0], which under
+        # get_summary_history's ascending order is the OLDEST version, not the
+        # latest edit -- every past edit was invisible in the document view.
         summary_versions = get_summary_history(document_id)
-        executive_summary = summary_versions[0]["summary_text"] if summary_versions else None
+        latest_summary_version = summary_versions[-1] if summary_versions else None
+        executive_summary = latest_summary_version["summary_text"] if latest_summary_version else None
 
         def _flag_payload(f: "RiskFlag") -> dict:
             playbook = session.execute(
@@ -563,6 +567,8 @@ async def get_document_detail(document_id: str, reviewer: dict = Depends(get_cur
             "contract_id": doc.contract_id, "clauses": clause_payload,
             "document_risk_flags": document_risk_flags,
             "executive_summary": executive_summary,
+            "latest_summary_version": latest_summary_version,
+            "summary_versions": summary_versions,
         })
 
 
@@ -613,6 +619,28 @@ async def add_summary_version_endpoint(document_id: str, body: SummaryVersionReq
 async def get_summary_history_endpoint(document_id: str) -> dict:
     from ..db.repository import get_summary_history
     return {"versions": get_summary_history(document_id)}
+
+
+@app.post("/api/documents/{document_id}/summary/{version_number}/approve", dependencies=[Depends(require_session)])
+async def approve_summary_version_endpoint(document_id: str, version_number: int,
+                                            reviewer: dict = Depends(get_current_reviewer)) -> dict:
+    from ..db.repository import approve_summary_version
+    try:
+        return approve_summary_version(document_id, version_number, approved_by=reviewer["username"])
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@app.post("/api/documents/{document_id}/summary/{version_number}/restore", dependencies=[Depends(require_session)])
+async def restore_summary_version_endpoint(document_id: str, version_number: int,
+                                            reviewer: dict = Depends(get_current_reviewer)) -> dict:
+    """Restoring creates a NEW version with the target version's text (section
+    14.1: old versions remain available -- restore never rewinds or deletes)."""
+    from ..db.repository import restore_summary_version
+    try:
+        return restore_summary_version(document_id, version_number, restored_by=reviewer["username"])
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # confidentiality override (section 12.3): only senior_counsel/admin may override,

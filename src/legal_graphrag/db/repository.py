@@ -252,7 +252,26 @@ def get_audit_log(document_id: str) -> list[dict]:
         ]
 
 
-def add_summary_version(document_id: str, summary_text: str, edited_by: Optional[str] = None) -> dict:
+def _summary_version_dict(r: "SummaryVersion") -> dict:
+    return {
+        "summary_version_id": r.summary_version_id, "version_number": r.version_number,
+        "summary_text": r.summary_text, "edited_by": r.edited_by, "is_ai_generated": r.is_ai_generated,
+        "approval_status": r.approval_status, "approved_by": r.approved_by,
+        "approved_at": r.approved_at.isoformat() if r.approved_at else None,
+        "restored_from_version": r.restored_from_version, "created_at": r.created_at.isoformat(),
+    }
+
+
+def add_summary_version(document_id: str, summary_text: str, edited_by: Optional[str] = None,
+                         is_ai_generated: Optional[bool] = None, restored_from_version: Optional[int] = None) -> dict:
+    """Always creates a new row (section 14.1: never overwrite history, approved
+    or not -- there is no update path for an existing SummaryVersion at all).
+    is_ai_generated defaults to True only when edited_by is None (the initial
+    ingestion-time generation); an explicit human edit or restore always sets
+    is_ai_generated=False unless the caller says otherwise, since a human took
+    an editorial action even if the resulting text happens to be AI-authored."""
+    if is_ai_generated is None:
+        is_ai_generated = edited_by is None
     with get_session() as session:
         last = session.execute(
             select(SummaryVersion)
@@ -262,25 +281,74 @@ def add_summary_version(document_id: str, summary_text: str, edited_by: Optional
         next_version = (last.version_number + 1) if last else 1
         row = SummaryVersion(
             document_id=document_id, version_number=next_version,
-            summary_text=summary_text, edited_by=edited_by,
+            summary_text=summary_text, edited_by=edited_by, is_ai_generated=is_ai_generated,
+            restored_from_version=restored_from_version,
         )
         session.add(row)
         session.flush()
-        return {"summary_version_id": row.summary_version_id, "version_number": row.version_number}
+        return _summary_version_dict(row)
 
 
 def get_summary_history(document_id: str) -> list[dict]:
+    """Ascending by version_number (oldest first) -- callers that want the
+    LATEST version should read the last element, not the first. See
+    get_latest_summary_version() for that case."""
     with get_session() as session:
         rows = session.execute(
             select(SummaryVersion)
             .where(SummaryVersion.document_id == document_id)
             .order_by(SummaryVersion.version_number.asc())
         ).scalars().all()
-        return [
-            {"version_number": r.version_number, "summary_text": r.summary_text,
-             "edited_by": r.edited_by, "created_at": r.created_at.isoformat()}
-            for r in rows
-        ]
+        return [_summary_version_dict(r) for r in rows]
+
+
+def get_latest_summary_version(document_id: str) -> Optional[dict]:
+    with get_session() as session:
+        row = session.execute(
+            select(SummaryVersion)
+            .where(SummaryVersion.document_id == document_id)
+            .order_by(SummaryVersion.version_number.desc())
+        ).scalars().first()
+        return _summary_version_dict(row) if row else None
+
+
+def approve_summary_version(document_id: str, version_number: int, approved_by: str) -> dict:
+    """Marks a specific version approved -- does not touch any other version's row
+    (multiple versions can each independently be approved/unapproved over time;
+    this only ever sets fields on the row being approved, never creates or
+    deletes rows, consistent with the append-only convention)."""
+    from datetime import datetime, timezone
+    with get_session() as session:
+        row = session.execute(
+            select(SummaryVersion).where(
+                SummaryVersion.document_id == document_id, SummaryVersion.version_number == version_number,
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            raise ValueError(f"No summary version {version_number} found for document_id={document_id}")
+        row.approval_status = "approved"
+        row.approved_by = approved_by
+        row.approved_at = datetime.now(timezone.utc)
+        session.flush()
+        return _summary_version_dict(row)
+
+
+def restore_summary_version(document_id: str, version_number: int, restored_by: str) -> dict:
+    """Restoring a previous version creates a NEW version with that version's
+    text (never rewinds/mutates the version being restored, or deletes the
+    versions created after it) -- so the full history, including the fact that
+    a restore happened and from which version, remains visible."""
+    with get_session() as session:
+        source = session.execute(
+            select(SummaryVersion).where(
+                SummaryVersion.document_id == document_id, SummaryVersion.version_number == version_number,
+            )
+        ).scalar_one_or_none()
+        if source is None:
+            raise ValueError(f"No summary version {version_number} found for document_id={document_id}")
+        source_text = source.summary_text
+    return add_summary_version(document_id, source_text, edited_by=restored_by,
+                                is_ai_generated=False, restored_from_version=version_number)
 
 
 def apply_confidentiality_classification(document_id: str, classification: dict) -> dict:

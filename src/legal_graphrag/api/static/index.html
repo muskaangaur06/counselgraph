@@ -1526,7 +1526,201 @@ document.addEventListener("submit", async (e) => {
   }
 });
 
+// simple word-level diff: LCS-based, good enough for prose-length summaries
+// (not a general-purpose diff library -- no external dependency for this)
+function wordDiff(oldText, newText) {
+  const oldWords = (oldText || "").split(/(\s+)/);
+  const newWords = (newText || "").split(/(\s+)/);
+  const m = oldWords.length, n = newWords.length;
+  const lcs = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      lcs[i][j] = oldWords[i] === newWords[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+  }
+  const ops = [];
+  let i = 0, j = 0;
+  while (i < m && j < n) {
+    if (oldWords[i] === newWords[j]) { ops.push(["equal", oldWords[i]]); i++; j++; }
+    else if (lcs[i + 1][j] >= lcs[i][j + 1]) { ops.push(["remove", oldWords[i]]); i++; }
+    else { ops.push(["add", newWords[j]]); j++; }
+  }
+  while (i < m) { ops.push(["remove", oldWords[i]]); i++; }
+  while (j < n) { ops.push(["add", newWords[j]]); j++; }
+  return ops;
+}
+
+function renderWordDiff(oldText, newText) {
+  return wordDiff(oldText, newText).map(([kind, word]) => {
+    if (kind === "equal") return escapeHtml(word);
+    if (kind === "add") return `<ins style="background:var(--good-soft); color:var(--good); text-decoration:none;">${escapeHtml(word)}</ins>`;
+    return `<del style="background:var(--danger-soft); color:var(--danger);">${escapeHtml(word)}</del>`;
+  }).join("");
+}
+
+function renderSummaryBlock(doc) {
+  const versions = doc.summary_versions || [];
+  const latest = doc.latest_summary_version;
+  if (!versions.length) return "";
+
+  let html = `
+    <div class="exhibit" id="summaryBlock">
+      <span class="exhibit-label">Summary</span>
+      <h3>Executive Summary</h3>
+  `;
+
+  if (latest) {
+    const sourceLabel = latest.is_ai_generated ? "AI-generated" : "human-edited";
+    const approvalLabel = latest.approval_status === "approved" ? "approved" : "draft";
+    html += `
+      <div class="clause-meta">
+        Version ${escapeHtml(String(latest.version_number))} &middot; ${escapeHtml(sourceLabel)}
+        ${latest.edited_by ? ` by ${escapeHtml(latest.edited_by)}` : ""}
+        &middot; <span class="stamp ${latest.approval_status === 'approved' ? 'low' : 'neutral'}">${escapeHtml(approvalLabel)}</span>
+        ${latest.restored_from_version ? ` &middot; restored from v${escapeHtml(String(latest.restored_from_version))}` : ""}
+      </div>
+      <div class="final-answer" id="summaryDisplay" style="margin-top:8px;">${escapeHtml(latest.summary_text)}</div>
+      <textarea id="summaryEditArea" style="display:none; width:100%; min-height:180px; margin-top:8px;">${escapeHtml(latest.summary_text)}</textarea>
+      <div class="btn-row" style="margin-top:10px;">
+        <button type="button" class="secondary" id="summaryEditToggle">Edit</button>
+        <button type="button" class="secondary" id="summarySaveBtn" style="display:none;">Save as New Version</button>
+        <button type="button" class="secondary" id="summaryCancelBtn" style="display:none;">Cancel</button>
+        ${latest.approval_status !== "approved" ? `<button type="button" class="secondary" id="summaryApproveBtn" data-version="${latest.version_number}">Approve This Version</button>` : ""}
+      </div>
+      <div id="summaryActionResult" class="clause-meta" style="margin-top:8px;"></div>
+    </div>
+  `;
+  } else {
+    html += `</div>`;
+    return html;
+  }
+
+  if (versions.length > 1) {
+    html += `
+      <div class="exhibit" id="summaryHistoryBlock">
+        <span class="exhibit-label">History</span>
+        <h3>Version History</h3>
+        <div class="clause-meta">${versions.length} versions. Select two to compare, or restore an earlier one.</div>
+        <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div>
+            <label for="summaryDiffFrom">Compare from</label>
+            <select id="summaryDiffFrom">
+              ${versions.map(v => `<option value="${v.version_number}">v${v.version_number}${v.approval_status === "approved" ? " (approved)" : ""}</option>`).join("")}
+            </select>
+          </div>
+          <div>
+            <label for="summaryDiffTo">Compare to</label>
+            <select id="summaryDiffTo">
+              ${versions.map(v => `<option value="${v.version_number}" ${v.version_number === latest.version_number ? "selected" : ""}>v${v.version_number}${v.approval_status === "approved" ? " (approved)" : ""}</option>`).join("")}
+            </select>
+          </div>
+          <button type="button" class="secondary" id="summaryDiffBtn">Compare</button>
+        </div>
+        <div id="summaryDiffResult" style="margin-top:12px;"></div>
+        <table style="width:100%; margin-top:14px; font-family:var(--sans); font-size:14.5px;">
+          <thead><tr>
+            <th style="text-align:left; padding:4px 8px;">Version</th>
+            <th style="text-align:left; padding:4px 8px;">Source</th>
+            <th style="text-align:left; padding:4px 8px;">Status</th>
+            <th style="text-align:left; padding:4px 8px;">When</th>
+            <th style="text-align:left; padding:4px 8px;"></th>
+          </tr></thead>
+          <tbody>
+            ${versions.slice().reverse().map(v => `
+              <tr style="border-top:1px solid var(--rule);">
+                <td style="padding:4px 8px;">v${escapeHtml(String(v.version_number))}${v.restored_from_version ? ` (from v${escapeHtml(String(v.restored_from_version))})` : ""}</td>
+                <td style="padding:4px 8px;">${v.is_ai_generated ? "AI-generated" : `human${v.edited_by ? ` (${escapeHtml(v.edited_by)})` : ""}`}</td>
+                <td style="padding:4px 8px;"><span class="stamp ${v.approval_status === 'approved' ? 'low' : 'neutral'}">${escapeHtml(v.approval_status)}</span></td>
+                <td style="padding:4px 8px;">${escapeHtml(v.created_at)}</td>
+                <td style="padding:4px 8px;">${v.version_number !== latest.version_number ? `<button type="button" class="secondary summary-restore-btn" data-version="${v.version_number}">Restore</button>` : ""}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  return html;
+}
+
+document.addEventListener("click", async (e) => {
+  const documentId = currentDocument.documentId;
+
+  if (e.target.id === "summaryEditToggle") {
+    document.getElementById("summaryDisplay").style.display = "none";
+    document.getElementById("summaryEditArea").style.display = "block";
+    document.getElementById("summaryEditToggle").style.display = "none";
+    document.getElementById("summarySaveBtn").style.display = "";
+    document.getElementById("summaryCancelBtn").style.display = "";
+  }
+
+  if (e.target.id === "summaryCancelBtn") {
+    document.getElementById("summaryDisplay").style.display = "";
+    document.getElementById("summaryEditArea").style.display = "none";
+    document.getElementById("summaryEditToggle").style.display = "";
+    document.getElementById("summarySaveBtn").style.display = "none";
+    document.getElementById("summaryCancelBtn").style.display = "none";
+  }
+
+  if (e.target.id === "summarySaveBtn") {
+    const text = document.getElementById("summaryEditArea").value.trim();
+    const resultEl = document.getElementById("summaryActionResult");
+    if (!text) { resultEl.textContent = "Summary text cannot be empty."; return; }
+    try {
+      await apiFetch(`/api/documents/${encodeURIComponent(documentId)}/summary`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary_text: text }),
+      });
+      resultEl.textContent = "New version saved.";
+      const out = document.getElementById("reviewResult");
+      if (out) await loadDocumentDetailInto(documentId, out);
+    } catch (err) {
+      resultEl.textContent = `Save failed: ${err.message || err}`;
+    }
+  }
+
+  if (e.target.id === "summaryApproveBtn") {
+    const version = e.target.dataset.version;
+    const resultEl = document.getElementById("summaryActionResult");
+    try {
+      await apiFetch(`/api/documents/${encodeURIComponent(documentId)}/summary/${version}/approve`, { method: "POST" });
+      resultEl.textContent = `Version ${version} approved.`;
+      const out = document.getElementById("reviewResult");
+      if (out) await loadDocumentDetailInto(documentId, out);
+    } catch (err) {
+      resultEl.textContent = `Approve failed: ${err.message || err}`;
+    }
+  }
+
+  if (e.target.classList.contains("summary-restore-btn")) {
+    const version = e.target.dataset.version;
+    try {
+      await apiFetch(`/api/documents/${encodeURIComponent(documentId)}/summary/${version}/restore`, { method: "POST" });
+      const out = document.getElementById("reviewResult");
+      if (out) await loadDocumentDetailInto(documentId, out);
+    } catch (err) {
+      alert(`Restore failed: ${err.message || err}`);
+    }
+  }
+
+  if (e.target.id === "summaryDiffBtn") {
+    const versions = window.__lastLoadedDoc ? (window.__lastLoadedDoc.summary_versions || []) : [];
+    const fromV = parseInt(document.getElementById("summaryDiffFrom").value, 10);
+    const toV = parseInt(document.getElementById("summaryDiffTo").value, 10);
+    const fromVersion = versions.find(v => v.version_number === fromV);
+    const toVersion = versions.find(v => v.version_number === toV);
+    const resultEl = document.getElementById("summaryDiffResult");
+    if (!fromVersion || !toVersion) { resultEl.textContent = "Could not find both versions."; return; }
+    resultEl.innerHTML = `
+      <div class="clause-meta">Diff: v${fromV} &rarr; v${toV} (removed in red, added in green)</div>
+      <div class="final-answer" style="margin-top:6px;">${renderWordDiff(fromVersion.summary_text, toVersion.summary_text)}</div>
+    `;
+  }
+});
+
 function renderDocumentDetail(doc) {
+  window.__lastLoadedDoc = doc;
   let html = `
     <div class="exhibit">
       <span class="exhibit-label">Details</span>
@@ -1545,16 +1739,7 @@ function renderDocumentDetail(doc) {
 
   html += renderConfidentialityBlock(doc);
   html += renderStandardsLookupBlock(doc);
-
-  if (doc.executive_summary) {
-    html += `
-      <div class="exhibit">
-        <span class="exhibit-label">Summary</span>
-        <h3>Executive Summary</h3>
-        <div class="final-answer">${escapeHtml(doc.executive_summary)}</div>
-      </div>
-    `;
-  }
+  html += renderSummaryBlock(doc);
 
   const clauses = doc.clauses || [];
   const flaggedClauses = clauses.filter(c => (c.risk_flags || []).length);
