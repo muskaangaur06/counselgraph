@@ -509,33 +509,42 @@ async def get_document_detail(document_id: str, reviewer: dict = Depends(get_cur
         summary_versions = get_summary_history(document_id)
         executive_summary = summary_versions[0]["summary_text"] if summary_versions else None
 
+        def _flag_payload(f: "RiskFlag") -> dict:
+            playbook = session.execute(
+                select(PlaybookEntry).where(PlaybookEntry.risk_flag_id == f.risk_flag_id)
+            ).scalar_one_or_none()
+            return {
+                "risk_flag_id": f.risk_flag_id, "category": f.category, "severity": f.severity, "rationale": f.rationale,
+                "confidence": f.confidence, "recommended_action": f.recommended_action,
+                "deviation_score": f.deviation_score, "deviation_detail": f.deviation_detail,
+                "confidence_breakdown": f.confidence_breakdown, "standards_evidence": f.standards_evidence,
+                "applicable_rule_source": f.applicable_rule_source, "assigned_role": f.assigned_role,
+                "reviewer_status": f.reviewer_status,
+                "playbook": ({
+                    "current_language": playbook.current_language,
+                    "fallback_positions": playbook.fallback_positions,
+                    "fallback_source": playbook.fallback_source,
+                    "suggested_redline": playbook.suggested_redline,
+                } if playbook else None),
+            }
+
         clauses = session.execute(select(Clause).where(Clause.document_id == document_id)).scalars().all()
         clause_payload = []
         for c in clauses:
             flags = session.execute(select(RiskFlag).where(RiskFlag.clause_id == c.clause_id)).scalars().all()
-            flag_payload = []
-            for f in flags:
-                playbook = session.execute(
-                    select(PlaybookEntry).where(PlaybookEntry.risk_flag_id == f.risk_flag_id)
-                ).scalar_one_or_none()
-                flag_payload.append({
-                    "risk_flag_id": f.risk_flag_id, "severity": f.severity, "rationale": f.rationale,
-                    "confidence": f.confidence, "recommended_action": f.recommended_action,
-                    "deviation_score": f.deviation_score, "deviation_detail": f.deviation_detail,
-                    "confidence_breakdown": f.confidence_breakdown, "assigned_role": f.assigned_role,
-                    "reviewer_status": f.reviewer_status,
-                    "playbook": ({
-                        "current_language": playbook.current_language,
-                        "fallback_positions": playbook.fallback_positions,
-                        "fallback_source": playbook.fallback_source,
-                        "suggested_redline": playbook.suggested_redline,
-                    } if playbook else None),
-                })
             clause_payload.append({
                 "clause_id": c.clause_id, "clause_type": c.clause_type, "extracted_text": c.extracted_text,
                 "page_reference": c.page_reference, "party": c.party, "confidence": c.confidence,
-                "version": c.version, "risk_flags": flag_payload,
+                "version": c.version, "risk_flags": [_flag_payload(f) for f in flags],
             })
+
+        # section 13.4: document-level risk categories (missing_clause, compliance_gap,
+        # value_threshold, unusual_governing_law) have no clause_id -- surfaced separately
+        # here so they aren't silently dropped by the per-clause loop above.
+        document_level_flags = session.execute(
+            select(RiskFlag).where(RiskFlag.document_id == document_id, RiskFlag.clause_id.is_(None))
+        ).scalars().all()
+        document_risk_flags = [_flag_payload(f) for f in document_level_flags]
 
         override_history = get_confidentiality_history(document_id)
 
@@ -552,6 +561,7 @@ async def get_document_detail(document_id: str, reviewer: dict = Depends(get_cur
             "review_priority": doc.review_priority,
             "org_profile_id": doc.org_profile_id, "status": doc.status, "job_id": doc.job_id,
             "contract_id": doc.contract_id, "clauses": clause_payload,
+            "document_risk_flags": document_risk_flags,
             "executive_summary": executive_summary,
         })
 

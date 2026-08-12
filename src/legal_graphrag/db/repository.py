@@ -170,17 +170,23 @@ def get_risk_flag(risk_flag_id: str) -> Optional[dict]:
         flag = session.get(RiskFlag, risk_flag_id)
         if flag is None:
             return None
-        return {"risk_flag_id": flag.risk_flag_id, "clause_id": flag.clause_id,
-                "assigned_role": flag.assigned_role, "reviewer_status": flag.reviewer_status}
+        return {"risk_flag_id": flag.risk_flag_id, "clause_id": flag.clause_id, "document_id": flag.document_id,
+                "category": flag.category, "assigned_role": flag.assigned_role, "reviewer_status": flag.reviewer_status}
 
 
-def create_risk_flag(clause_id: str, severity: str, rationale: Optional[str] = None,
+def create_risk_flag(clause_id: Optional[str], severity: str, rationale: Optional[str] = None,
                       confidence: Optional[float] = None, recommended_action: Optional[str] = None,
                       deviation_score: Optional[float] = None, deviation_detail: Optional[dict] = None,
-                      confidence_breakdown: Optional[dict] = None, assigned_role: str = "reviewer") -> str:
+                      confidence_breakdown: Optional[dict] = None, assigned_role: str = "reviewer",
+                      document_id: Optional[str] = None, category: Optional[str] = None,
+                      standards_evidence: Optional[dict] = None, applicable_rule_source: Optional[str] = None) -> str:
+    """clause_id is optional: document-level categories (missing_clause, compliance_gap,
+    unusual_governing_law) have no single clause to attach to and set document_id instead."""
     with get_session() as session:
         flag = RiskFlag(
             clause_id=clause_id,
+            document_id=document_id,
+            category=category,
             severity=severity,
             rationale=rationale,
             confidence=confidence,
@@ -188,6 +194,8 @@ def create_risk_flag(clause_id: str, severity: str, rationale: Optional[str] = N
             deviation_score=deviation_score,
             deviation_detail=deviation_detail,
             confidence_breakdown=confidence_breakdown,
+            standards_evidence=standards_evidence,
+            applicable_rule_source=applicable_rule_source,
             assigned_role=assigned_role,
         )
         session.add(flag)

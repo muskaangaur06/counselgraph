@@ -207,9 +207,27 @@ def link_same_clause_node(state: IngestionState) -> dict:
 
 def detect_conflicts_node(state: IngestionState) -> dict:
     store = get_store()
+    clause_by_id = {c["id"]: c for c in state["clauses"]}
     conflicts = detect_conflicts([{"id": c["id"], "text": c["text"]} for c in state["clauses"]])
     for pair in conflicts:
         store.create_conflict(pair["clause_id_a"], pair["clause_id_b"], pair["reason"])
+
+        # section 13.4: conflicting_terms is a risk category too -- surface it as
+        # a real RiskFlag row (attached to the first clause in the pair), not just
+        # a Neo4j CONFLICTS_WITH edge a reviewer would never otherwise see.
+        pg_document_id = state.get("document_id")
+        clause_a = clause_by_id.get(pair["clause_id_a"], {})
+        if pg_document_id and clause_a.get("pg_clause_id"):
+            try:
+                from ..db.repository import create_risk_flag as pg_create_risk_flag
+                pg_create_risk_flag(
+                    clause_id=clause_a["pg_clause_id"], document_id=None,
+                    category="conflicting_terms", severity="high", rationale=pair["reason"],
+                    confidence=0.85, recommended_action="Resolve the conflicting clauses before execution.",
+                    applicable_rule_source="deterministic:conflict_detection",
+                )
+            except Exception as e:  # noqa: BLE001
+                print(f"[detect_conflicts] WARNING: risk_flag persistence failed: {type(e).__name__}: {e}")
 
     store.write_audit_record(state["job_id"], "system", "conflicts_detected", f"count={len(conflicts)}")
     print(f"[detect_conflicts] {len(conflicts)} conflicting clause pairs found")
@@ -301,6 +319,26 @@ def risk_flag_node(state: IngestionState) -> dict:
 
         assigned_role = _resolve_assigned_role(r["risk_level"], r.get("confidence"), risk_threshold_overrides)
 
+        # section 13.4: link the resolved standard (if any) as this finding's
+        # standards evidence, so a reviewer can see what the clause was checked
+        # against, not just the LLM's rationale
+        standards_evidence = None
+        if clause.get("clause_type"):
+            try:
+                from .standards import resolve_standards
+                std_result = resolve_standards(
+                    clause_type=clause["clause_type"], document_type=standards_context.get("document_type"),
+                    org_profile_id=org_profile_id, business_unit_id=standards_context.get("business_unit_id"),
+                    jurisdiction_id=standards_context.get("jurisdiction_id"), customer_id=standards_context.get("customer_id"),
+                )
+                if std_result.get("selected"):
+                    standards_evidence = {"scope_level": std_result["scope_level"],
+                                          "standards": [{"knowledge_reference_id": s["knowledge_reference_id"],
+                                                         "title": s["title"], "version": s["version"]}
+                                                        for s in std_result["selected"]]}
+            except Exception as e:  # noqa: BLE001
+                print(f"[risk_flag] WARNING: standards evidence lookup failed: {type(e).__name__}: {e}")
+
         store.create_risk_flag(
             r["clause_id"], r["risk_level"], r["reason"],
             confidence=r.get("confidence"), recommended_action=r.get("recommended_action"),
@@ -313,12 +351,15 @@ def risk_flag_node(state: IngestionState) -> dict:
                 pg_flag_id = pg_create_risk_flag(
                     clause_id=pg_clause_id,
                     severity=r["risk_level"],
+                    category=r.get("category"),
                     rationale=r["reason"],
                     confidence=r.get("confidence"),
                     recommended_action=r.get("recommended_action"),
                     deviation_score=deviation["deviation_score"] if deviation else None,
                     deviation_detail=deviation,
                     confidence_breakdown=confidence_breakdown,
+                    standards_evidence=standards_evidence,
+                    applicable_rule_source="llm_risk_review",
                     assigned_role=assigned_role,
                 )
                 r["deviation"] = deviation
@@ -346,6 +387,132 @@ def risk_flag_node(state: IngestionState) -> dict:
             except Exception as e:  # noqa: BLE001
                 print(f"[risk_flag] WARNING: Postgres risk_flag/playbook persistence failed: {type(e).__name__}: {e}")
 
+    # Section 13.4 deterministic checks: duplicate clauses, auto-renewal, excessive
+    # liability, value threshold, unusual governing law. These run independently
+    # of the LLM pass above (not a replacement for it) since they catch specific,
+    # high-confidence patterns an LLM might phrase inconsistently or miss, and
+    # need cross-clause/document-level context flag_risks() doesn't have per-clause.
+    pg_document_id = state.get("document_id")
+    if pg_document_id:
+        try:
+            from ..db.repository import create_risk_flag as pg_create_risk_flag
+            from .compliance import (
+                detect_duplicate_clauses, detect_auto_renewal, detect_excessive_liability,
+                check_value_threshold, check_unusual_governing_law,
+            )
+            document_context = state.get("document_context") or {}
+            clauses_with_pg_id = [c for c in state["clauses"] if c.get("pg_clause_id")]
+
+            for dup in detect_duplicate_clauses(clauses_with_pg_id):
+                first_clause = clause_by_id.get(dup["clause_ids"][0], {})
+                pg_clause_id = first_clause.get("pg_clause_id")
+                pg_create_risk_flag(
+                    clause_id=pg_clause_id, document_id=None if pg_clause_id else pg_document_id,
+                    category="duplicate_clause", severity="medium", rationale=dup["reason"],
+                    confidence=1.0, recommended_action="Review all instances and consolidate or confirm intent.",
+                    applicable_rule_source="deterministic:duplicate_clause",
+                )
+
+            for ren in detect_auto_renewal(clauses_with_pg_id):
+                clause = clause_by_id.get(ren["clause_id"], {})
+                pg_clause_id = clause.get("pg_clause_id")
+                pg_create_risk_flag(
+                    clause_id=pg_clause_id, document_id=None if pg_clause_id else pg_document_id,
+                    category="auto_renewal", severity="medium",
+                    rationale=f"Automatic-renewal language detected: \"{ren['evidence']}\"",
+                    confidence=0.9, recommended_action="Confirm renewal terms and notice period are acceptable.",
+                    applicable_rule_source="deterministic:auto_renewal",
+                )
+
+            for excessive in detect_excessive_liability(clauses_with_pg_id):
+                clause = clause_by_id.get(excessive["clause_id"], {})
+                pg_clause_id = clause.get("pg_clause_id")
+                pg_create_risk_flag(
+                    clause_id=pg_clause_id, document_id=None if pg_clause_id else pg_document_id,
+                    category="excessive_liability", severity="high",
+                    rationale=f"Unlimited/uncapped liability language detected: \"{excessive['evidence']}\"",
+                    confidence=0.9, recommended_action="Escalate to senior counsel for liability cap negotiation.",
+                    assigned_role="senior_counsel", applicable_rule_source="deterministic:excessive_liability",
+                )
+
+            value_flag = check_value_threshold(document_context.get("monetary_value"))
+            if value_flag:
+                pg_create_risk_flag(
+                    clause_id=None, document_id=pg_document_id, category="value_threshold", severity="medium",
+                    rationale=value_flag["reason"], confidence=1.0,
+                    recommended_action="Route for additional approval per high-value contract policy.",
+                    applicable_rule_source="deterministic:value_threshold",
+                )
+
+            expected_country = (risk_threshold_overrides.get("expected_governing_law_country")
+                                 if risk_threshold_overrides else None)
+            if not expected_country and org_profile_id:
+                try:
+                    from ..db.repository import get_org_profile
+                    profile = get_org_profile(org_profile_id)
+                    expected_country = (profile or {}).get("jurisdiction_defaults", {}).get("governing_law_country")
+                except Exception:
+                    expected_country = None
+            law_flag = check_unusual_governing_law(document_context.get("governing_law_country"), expected_country)
+            if law_flag:
+                pg_create_risk_flag(
+                    clause_id=None, document_id=pg_document_id, category="unusual_governing_law", severity="medium",
+                    rationale=law_flag["reason"], confidence=1.0,
+                    recommended_action="Confirm governing-law choice is intentional and acceptable.",
+                    applicable_rule_source="deterministic:unusual_governing_law",
+                )
+
+            # section 13.4 compliance_gap / prohibited_language: reuse Phase 5's
+            # mandatory/prohibited standards, scanned across ALL clause_types at
+            # once (not just clause_types present in the document -- a mandatory
+            # standard for an ABSENT clause_type is exactly the compliance_gap
+            # case, and there's no known clause_type to ask about one at a time
+            # for something that was never extracted). Distinct from
+            # missing_clause_node's generic checklist since this comes from a
+            # jurisdiction/org-mandatory KnowledgeReference rule, not the org
+            # profile's required_clause_checklist.
+            from .standards import find_all_mandatory_and_prohibited
+            present_clause_types = {c.get("clause_type") for c in state["clauses"] if c.get("clause_type")}
+            mp_all = find_all_mandatory_and_prohibited(
+                document_type=standards_context.get("document_type"), org_profile_id=org_profile_id,
+                business_unit_id=standards_context.get("business_unit_id"),
+                jurisdiction_id=standards_context.get("jurisdiction_id"), customer_id=standards_context.get("customer_id"),
+            )
+
+            mandatory_by_type: dict[str, list[dict]] = {}
+            for m in mp_all["mandatory"]:
+                mandatory_by_type.setdefault(m["clause_type"], []).append(m)
+            for ctype, refs in mandatory_by_type.items():
+                if ctype in present_clause_types:
+                    continue
+                pg_create_risk_flag(
+                    clause_id=None, document_id=pg_document_id, category="compliance_gap", severity="high",
+                    rationale=f"'{ctype}' is a mandatory requirement per {refs[0]['title'] or 'an applicable standard'}, but is absent from this document.",
+                    confidence=1.0, recommended_action="Add the mandatory clause before execution.",
+                    standards_evidence={"standards": [{"knowledge_reference_id": s["knowledge_reference_id"], "title": s["title"]} for s in refs]},
+                    applicable_rule_source="deterministic:mandatory_standard",
+                )
+
+            prohibited_by_type: dict[str, list[dict]] = {}
+            for p in mp_all["prohibited"]:
+                prohibited_by_type.setdefault(p["clause_type"], []).append(p)
+            for ctype, refs in prohibited_by_type.items():
+                if ctype not in present_clause_types:
+                    continue
+                matching_clause = next((cl for cl in state["clauses"] if cl.get("clause_type") == ctype), {})
+                matching_pg_clause_id = matching_clause.get("pg_clause_id")
+                pg_create_risk_flag(
+                    clause_id=matching_pg_clause_id, document_id=None if matching_pg_clause_id else pg_document_id,
+                    category="prohibited_language", severity="high",
+                    rationale=f"'{ctype}' clause is present but prohibited per {refs[0]['title'] or 'an applicable standard'}.",
+                    confidence=1.0, recommended_action="Remove or renegotiate the prohibited clause.",
+                    assigned_role="senior_counsel",
+                    standards_evidence={"standards": [{"knowledge_reference_id": s["knowledge_reference_id"], "title": s["title"]} for s in refs]},
+                    applicable_rule_source="deterministic:prohibited_standard",
+                )
+        except Exception as e:  # noqa: BLE001
+            print(f"[risk_flag] WARNING: deterministic compliance checks failed: {type(e).__name__}: {e}")
+
     store.write_audit_record(state["job_id"], "system", "risk_flags_created", f"count={len(risks)}")
     print(f"[risk_flag] {len(risks)} risk flags created")
     return {"risk_flags": risks}
@@ -361,6 +528,22 @@ def missing_clause_node(state: IngestionState) -> dict:
 
     for m in missing:
         store.create_missing_clause_flag(state["contract_id"], m["clause_type"], m["reason"])
+
+        # section 13.4: missing_clause is a document-level risk category -- surface
+        # it as a real RiskFlag row (clause_id=None, document_id set) so a reviewer
+        # sees it alongside clause-level findings instead of only in Neo4j.
+        pg_document_id = state.get("document_id")
+        if pg_document_id:
+            try:
+                from ..db.repository import create_risk_flag as pg_create_risk_flag
+                pg_create_risk_flag(
+                    clause_id=None, document_id=pg_document_id, category="missing_clause",
+                    severity="medium", rationale=m["reason"], confidence=1.0,
+                    recommended_action=f"Add a {m['clause_type'].replace('_', ' ')} clause before execution.",
+                    applicable_rule_source="deterministic:missing_clause_checklist",
+                )
+            except Exception as e:  # noqa: BLE001
+                print(f"[missing_clause] WARNING: risk_flag persistence failed: {type(e).__name__}: {e}")
 
     store.write_audit_record(state["job_id"], "system", "missing_clauses_checked", f"count={len(missing)}")
     print(f"[missing_clause] {len(missing)} expected clause types missing")

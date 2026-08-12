@@ -134,13 +134,30 @@ def detect_conflicts(clauses: list[dict]) -> list[dict]:
 
 # risk flagging
 
-_RISK_SYSTEM_PROMPT = """You are a contract risk reviewer. Given a JSON array \
+RISK_CATEGORIES = (
+    "non_standard", "ambiguous", "prohibited_language", "excessive_liability", "asymmetric_rights",
+)  # categories the LLM pass can identify from clause text alone (section 13.4); the rest
+   # (missing_clause, conflicting_terms, duplicate_clause, compliance_gap, value_threshold,
+   # unusual_governing_law, auto_renewal) are produced deterministically elsewhere
+   # (missing_clause_node, detect_conflicts_node, graphrag/compliance.py) since they need
+   # cross-clause or document-level context an isolated clause can't provide.
+
+_RISK_SYSTEM_PROMPT = f"""You are a contract risk reviewer. Given a JSON array \
 of clauses (each with an "id", "clause_type", and "text"), assign a risk \
-level to each.
+level and category to each.
 
 Respond with ONLY a JSON array (no prose, no markdown fences):
-[{"clause_id": string, "risk_level": "low"|"medium"|"high", "reason": string,
-  "confidence": number, "recommended_action": string}, ...]
+[{{"clause_id": string, "risk_level": "low"|"medium"|"high",
+  "category": one of {list(RISK_CATEGORIES)},
+  "reason": string, "confidence": number, "recommended_action": string}}, ...]
+"category" must be the single best-fitting label from that exact list:
+- non_standard: language that deviates from typical/expected phrasing for this clause type
+- ambiguous: language whose meaning or scope is unclear or open to multiple interpretations
+- prohibited_language: language that should never appear per common legal/compliance practice
+  (e.g. waiving statutory rights, illegal indemnification scope)
+- excessive_liability: liability that is unusually broad, uncapped, or one-sided
+- asymmetric_rights: rights/obligations that favor one party disproportionately (e.g. one-sided
+  termination rights, unilateral amendment rights)
 "confidence" is 0.0-1.0, how confident you are in this risk assessment.
 "recommended_action" is a short instruction for the reviewer (e.g. "Escalate to senior counsel",
 "Flag for legal review", "Note for reviewer awareness").
@@ -150,7 +167,7 @@ omit clauses with no notable risk."""
 
 def flag_risks(clauses: list[dict]) -> list[dict]:
     """clauses: [{"id", "clause_type", "text"}, ...]. Returns
-    [{"clause_id", "risk_level", "reason", "confidence", "recommended_action"}, ...]."""
+    [{"clause_id", "risk_level", "category", "reason", "confidence", "recommended_action"}, ...]."""
     if not clauses:
         return []
     payload = json.dumps([{"id": c["id"], "clause_type": c.get("clause_type"), "text": c["text"]} for c in clauses])

@@ -189,3 +189,29 @@ def check_mandatory_and_prohibited(clause_type: Optional[str], document_type: Op
     mandatory = [r for r in candidates if r["is_mandatory"] and _active(r)]
     prohibited = [r for r in candidates if r["is_prohibited"] and _active(r)]
     return {"mandatory": mandatory, "prohibited": prohibited}
+
+
+def find_all_mandatory_and_prohibited(document_type: Optional[str], org_profile_id: Optional[str],
+                                       business_unit_id: Optional[str], jurisdiction_id: Optional[str],
+                                       customer_id: Optional[str], as_of: Optional[datetime] = None) -> dict:
+    """Like check_mandatory_and_prohibited, but scans every clause_type at once
+    instead of checking one at a time -- needed to discover a mandatory
+    requirement whose clause_type is ABSENT from the document (there is no
+    known clause_type to ask about in that case, since nothing was extracted
+    for it). Returns {mandatory: [...], prohibited: [...]}, each row still
+    tagged with its own clause_type so the caller can group by it."""
+    as_of = as_of or datetime.now(timezone.utc)
+    from ..db.repository import find_standards_candidates
+    candidates = find_standards_candidates(
+        clause_type=None, document_type=document_type, org_profile_id=org_profile_id,
+        business_unit_id=business_unit_id, jurisdiction_id=jurisdiction_id, customer_id=customer_id,
+    )
+
+    def _active(row: dict) -> bool:
+        if _is_expired(row, as_of) or _is_not_yet_effective(row, as_of):
+            return False
+        return True
+
+    mandatory = [r for r in candidates if r["is_mandatory"] and _active(r)]
+    prohibited = [r for r in candidates if r["is_prohibited"] and _active(r)]
+    return {"mandatory": mandatory, "prohibited": prohibited}

@@ -108,4 +108,5 @@ def format_executive_summary(document_name: str, job_id: str, contract_metadata:
         "effective_date": contract_metadata.get("effective_date"),
         "end_date": contract_metadata.get("end_date"),
         "governing_law_country": contract_metadata.get("governing_law_country"),
+        "monetary_value": contract_metadata.get("monetary_value"),
     }

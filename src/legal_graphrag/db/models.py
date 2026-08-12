@@ -163,10 +163,20 @@ class Clause(Base):
 
 
 class RiskFlag(Base):
+    """clause_id is nullable because some risk categories are document-level, not
+    tied to one extracted clause (missing_clause: the clause doesn't exist to link
+    to; compliance_gap/unusual_governing_law: evaluated against document-level
+    metadata). document_id is set for those; clause-level flags leave it null and
+    rely on clause.document_id instead (avoids a redundant denormalized column for
+    the common case)."""
     __tablename__ = "risk_flag"
 
     risk_flag_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    clause_id: Mapped[str] = mapped_column(String(36), ForeignKey("clause.clause_id"), nullable=False)
+    clause_id: Mapped[str] = mapped_column(String(36), ForeignKey("clause.clause_id"), nullable=True)
+    document_id: Mapped[str] = mapped_column(String(36), ForeignKey("document.document_id"), nullable=True)
+    category: Mapped[str] = mapped_column(String(50), nullable=True)  # section 13.4: missing_clause/non_standard/ambiguous/
+    # conflicting_terms/duplicate_clause/prohibited_language/compliance_gap/value_threshold/
+    # unusual_governing_law/excessive_liability/auto_renewal/asymmetric_rights
     severity: Mapped[str] = mapped_column(String(20), nullable=False)  # low/medium/high
     rationale: Mapped[str] = mapped_column(Text, nullable=True)
     confidence: Mapped[float] = mapped_column(Float, nullable=True)
@@ -174,6 +184,8 @@ class RiskFlag(Base):
     deviation_score: Mapped[float] = mapped_column(Float, nullable=True)  # cosine similarity vs approved language
     deviation_detail: Mapped[dict] = mapped_column(JSON, nullable=True)  # structured diff, section 4
     confidence_breakdown: Mapped[dict] = mapped_column(JSON, nullable=True)  # section 7 composite components
+    standards_evidence: Mapped[dict] = mapped_column(JSON, nullable=True)  # section 13.4: resolved standard(s) this finding was checked against
+    applicable_rule_source: Mapped[str] = mapped_column(String(100), nullable=True)  # e.g. "llm_risk_review", "deterministic:duplicate_clause", knowledge_reference_id
     assigned_role: Mapped[str] = mapped_column(String(50), default="reviewer")  # section 8 routing
     reviewer_status: Mapped[str] = mapped_column(String(50), default="pending")  # pending/accepted/edited/rejected/escalated
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

@@ -1589,10 +1589,12 @@ function renderDocumentDetail(doc) {
             </div>
             <div class="annotation-side">
               <span class="stamp ${f.severity === 'high' ? 'high' : f.severity === 'medium' ? 'medium' : 'low'}">${escapeHtml(f.severity)} risk</span>
+              ${f.category ? `<span class="stamp neutral">${escapeHtml(f.category.replace(/_/g, " "))}</span>` : ""}
               ${f.assigned_role === "senior_counsel" ? `<span class="stamp medium">Senior Counsel</span>` : ""}
               <div class="label">Finding</div>
               <div style="font-family:var(--sans); font-size:16px; line-height:1.5;">${escapeHtml(f.rationale)}</div>
               ${f.recommended_action ? `<div class="label">Recommended Action</div><div style="font-family:var(--sans); font-size:16px;">${escapeHtml(f.recommended_action)}</div>` : ""}
+              ${f.standards_evidence ? `<div class="label">Standards Evidence</div><div style="font-family:var(--sans); font-size:15px;">${(f.standards_evidence.standards || []).map(s => escapeHtml(s.title || s.knowledge_reference_id)).join(", ")}</div>` : ""}
               <div class="label">Confidence</div>
               <div class="value">${confidenceValue(f.confidence)}</div>
               <div class="label">Reviewer Status</div>
@@ -1602,6 +1604,35 @@ function renderDocumentDetail(doc) {
           <hr class="rule">
         `;
       }
+    }
+    html += `</div>`;
+  }
+
+  const documentFlags = doc.document_risk_flags || [];
+  if (documentFlags.length) {
+    html += `<div class="exhibit"><span class="exhibit-label">Risk</span><h3>Document-Level Findings</h3>
+      <div class="clause-meta">Findings not tied to a single clause -- missing clauses, compliance gaps, value thresholds, unusual governing law.</div>`;
+    for (const f of documentFlags) {
+      html += `
+        <div class="annotation-row" style="margin-bottom:20px;">
+          <div class="annotation-main">
+            <div class="label">Finding</div>
+            <div style="font-family:var(--sans); font-size:16px; line-height:1.5;">${escapeHtml(f.rationale)}</div>
+            ${f.recommended_action ? `<div class="label">Recommended Action</div><div style="font-family:var(--sans); font-size:16px;">${escapeHtml(f.recommended_action)}</div>` : ""}
+            ${f.standards_evidence ? `<div class="label">Standards Evidence</div><div style="font-family:var(--sans); font-size:15px;">${(f.standards_evidence.standards || []).map(s => escapeHtml(s.title || s.knowledge_reference_id)).join(", ")}</div>` : ""}
+          </div>
+          <div class="annotation-side">
+            <span class="stamp ${f.severity === 'high' ? 'high' : f.severity === 'medium' ? 'medium' : 'low'}">${escapeHtml(f.severity)} risk</span>
+            ${f.category ? `<span class="stamp neutral">${escapeHtml(f.category.replace(/_/g, " "))}</span>` : ""}
+            ${f.assigned_role === "senior_counsel" ? `<span class="stamp medium">Senior Counsel</span>` : ""}
+            <div class="label">Confidence</div>
+            <div class="value">${confidenceValue(f.confidence)}</div>
+            <div class="label">Reviewer Status</div>
+            <div style="font-family:var(--sans); font-size:16px;">${escapeHtml(f.reviewer_status)}</div>
+          </div>
+        </div>
+        <hr class="rule">
+      `;
     }
     html += `</div>`;
   }

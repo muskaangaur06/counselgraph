@@ -72,6 +72,26 @@ def init_db() -> None:
     engine = get_engine()
     Base.metadata.create_all(engine)
     _add_missing_columns(engine, inspect(engine))
+    _relax_risk_flag_clause_id(engine, inspect(engine))
+
+
+def _relax_risk_flag_clause_id(engine, inspector) -> None:
+    """Phase 6: RiskFlag.clause_id became nullable (document-level risk categories
+    like missing_clause/compliance_gap have no single clause to point at). Existing
+    tables created back when it was NOT NULL need an explicit ALTER -- unlike a
+    brand-new column, _add_missing_columns() has no mechanism to change an
+    existing column's constraints. SQLite doesn't support ALTER COLUMN at all, but
+    also never enforces NOT NULL retroactively on old columns in practice here
+    (tests run against a fresh SQLite created from the current model already, so
+    this is a Postgres-only concern in the live deployment)."""
+    if "risk_flag" not in inspector.get_table_names():
+        return
+    if engine.dialect.name != "postgresql":
+        return  # SQLite: fresh test DBs already create clause_id as nullable from the current model
+    columns = {c["name"]: c for c in inspector.get_columns("risk_flag")}
+    if columns.get("clause_id", {}).get("nullable") is False:
+        with engine.begin() as conn:
+            conn.execute(sa_text('ALTER TABLE "risk_flag" ALTER COLUMN "clause_id" DROP NOT NULL'))
 
 
 def _add_missing_columns(engine, inspector) -> None:
