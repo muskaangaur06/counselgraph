@@ -1052,6 +1052,35 @@ async def refresh_eval_summary() -> dict:
     return {"computed": True, **summary}
 
 
+@app.get("/api/evaluation-runs", dependencies=[Depends(require_session)])
+async def list_evaluation_runs(limit: int = 20) -> dict:
+    """Section 28.3's evaluation-run inspection surface -- read-only history,
+    populated by scripts/run_evaluation.py (Phase 10's CLI). No trigger-a-run
+    HTTP endpoint yet: running evaluations makes real LLM calls and can take
+    minutes, same "manual CLI trigger, not an API POST" reasoning as the
+    existing /api/eval/refresh being explicitly manual-only."""
+    from ..db.repository import get_evaluation_run_history
+    return _jsonable({"runs": get_evaluation_run_history(limit=limit)})
+
+
+@app.get("/api/evaluation-runs/latest", dependencies=[Depends(require_session)])
+async def get_latest_evaluation_run_endpoint() -> dict:
+    from ..db.repository import get_latest_evaluation_run
+    run = get_latest_evaluation_run()
+    if run is None:
+        return {"computed": False, "note": "No evaluation run persisted yet. Run scripts/run_evaluation.py."}
+    return _jsonable({"computed": True, **run})
+
+
+@app.get("/api/evaluation-runs/{evaluation_run_id}", dependencies=[Depends(require_session)])
+async def get_evaluation_run_endpoint(evaluation_run_id: str) -> dict:
+    from ..db.repository import get_evaluation_run
+    run = get_evaluation_run(evaluation_run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"No evaluation run found for evaluation_run_id={evaluation_run_id}")
+    return _jsonable(run)
+
+
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}

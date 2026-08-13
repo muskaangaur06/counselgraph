@@ -1,0 +1,66 @@
+{
+  "version": "1.0.0",
+  "description": "Hand-labeled text snippets with a known-correct final confidentiality level, for scoring graphrag.confidentiality.classify_document_confidentiality() end-to-end (deterministic signals + Gemini call + safe combination). Distinct from the existing test_confidentiality_classifier.py unit tests, which exercise the deterministic signal detector and combination logic in isolation with synthetic inputs -- these cases exercise the full pipeline including the live LLM call.",
+  "cases": [
+    {
+      "case_id": "explicit-strictly-confidential-label",
+      "text": "STRICTLY CONFIDENTIAL - Board Materials Only. This memorandum summarizes the board's discussion of the proposed restructuring.",
+      "document_type": null,
+      "expected_level": "highly_confidential"
+    },
+    {
+      "case_id": "ma-valuation-memo",
+      "text": "This memorandum discusses the proposed merger and acquisition of Acme Corp, including a detailed valuation analysis and enterprise value estimate of $450 million.",
+      "document_type": null,
+      "expected_level": "highly_confidential"
+    },
+    {
+      "case_id": "mutual-nda-standard",
+      "text": "This Mutual Non-Disclosure Agreement is entered into between Party A and Party B to govern the exchange of confidential business information in connection with a potential commercial relationship.",
+      "document_type": "nda",
+      "expected_level": "confidential"
+    },
+    {
+      "case_id": "vendor-pricing-schedule",
+      "text": "Attached is the detailed unit pricing schedule for all SKUs under this supply agreement, including volume discount tiers and per-unit costs.",
+      "document_type": null,
+      "expected_level": "confidential"
+    },
+    {
+      "case_id": "internal-use-only-sop",
+      "text": "INTERNAL USE ONLY. Standard operating procedure for vendor onboarding, covering the intake checklist and approval workflow for new supplier relationships.",
+      "document_type": null,
+      "expected_level": "internal"
+    },
+    {
+      "case_id": "internal-hr-policy",
+      "text": "This policy document describes the company's internal expense reimbursement process and approval thresholds for employee travel.",
+      "document_type": null,
+      "expected_level": "internal"
+    },
+    {
+      "case_id": "public-annual-report-excerpt",
+      "text": "Our Annual Report to shareholders, filed with the securities regulator, summarizes the fiscal year's revenue growth and publicly disclosed financial highlights.",
+      "document_type": null,
+      "expected_level": "public"
+    },
+    {
+      "case_id": "public-press-release",
+      "text": "FOR IMMEDIATE RELEASE. The company today announced the general availability of its new product line, effective next quarter.",
+      "document_type": null,
+      "expected_level": "public"
+    },
+    {
+      "case_id": "personal-data-processing-agreement",
+      "text": "This Data Processing Agreement governs the processing of personal data, including names, dates of birth, and passport numbers, on behalf of the controller.",
+      "document_type": null,
+      "expected_level": "confidential"
+    },
+    {
+      "case_id": "generic-service-agreement-no-signals",
+      "text": "This Service Agreement sets out the scope of services, the term of the engagement, and standard termination provisions between the parties.",
+      "document_type": "service",
+      "expected_level": "internal"
+    }
+  ]
+}

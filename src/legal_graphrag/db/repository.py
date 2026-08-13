@@ -19,6 +19,8 @@ from .models import (
     ConfidentialityOverride,
     DecisionBrief,
     Document,
+    EvaluationCaseResult,
+    EvaluationRun,
     KnowledgeReference,
     OrgProfile,
     PlaybookEntry,
@@ -873,3 +875,90 @@ def clear_chat_history(document_id: str) -> dict:
         doc.chat_cleared_at = datetime.now(timezone.utc)
         session.flush()
         return {"document_id": document_id, "chat_cleared_at": doc.chat_cleared_at.isoformat()}
+
+
+def _evaluation_case_result_dict(c: "EvaluationCaseResult") -> dict:
+    return {
+        "evaluation_case_result_id": c.evaluation_case_result_id, "domain": c.domain, "case_label": c.case_label,
+        "passed": c.passed, "scores": c.scores or {}, "detail": c.detail or {}, "created_at": c.created_at.isoformat(),
+    }
+
+
+def _evaluation_run_dict(r: "EvaluationRun", case_results: list[dict]) -> dict:
+    return {
+        "evaluation_run_id": r.evaluation_run_id, "triggered_by": r.triggered_by, "commit_sha": r.commit_sha,
+        "gemini_model": r.gemini_model, "embedding_model": r.embedding_model,
+        "dataset_versions": r.dataset_versions or {}, "metrics": r.metrics, "case_counts": r.case_counts or {},
+        "status": r.status, "error_detail": r.error_detail, "duration_seconds": r.duration_seconds,
+        "started_at": r.started_at.isoformat(),
+        "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+        "case_results": case_results,
+    }
+
+
+def create_evaluation_run(triggered_by: Optional[str], commit_sha: Optional[str], gemini_model: Optional[str],
+                           embedding_model: Optional[str], dataset_versions: dict, metrics: dict,
+                           case_counts: dict, duration_seconds: float, case_results: list[dict],
+                           status: str = "completed", error_detail: Optional[str] = None) -> dict:
+    """Persists one evaluation run and its per-case breakdown. Always a fresh
+    row -- append-only, like DecisionBrief/ChatMessage/AuditLog. case_results is
+    a list of {"domain","case_label","passed","scores","detail"} dicts."""
+    from datetime import datetime, timezone
+
+    with get_session() as session:
+        run = EvaluationRun(
+            triggered_by=triggered_by, commit_sha=commit_sha, gemini_model=gemini_model,
+            embedding_model=embedding_model, dataset_versions=dataset_versions, metrics=metrics,
+            case_counts=case_counts, status=status, error_detail=error_detail, duration_seconds=duration_seconds,
+            completed_at=datetime.now(timezone.utc),
+        )
+        session.add(run)
+        session.flush()
+
+        rows = []
+        for c in case_results:
+            row = EvaluationCaseResult(
+                evaluation_run_id=run.evaluation_run_id, domain=c["domain"], case_label=c["case_label"],
+                passed=c.get("passed"), scores=c.get("scores") or {}, detail=c.get("detail") or {},
+            )
+            session.add(row)
+            rows.append(row)
+        session.flush()
+
+        return _evaluation_run_dict(run, [_evaluation_case_result_dict(r) for r in rows])
+
+
+def get_latest_evaluation_run() -> Optional[dict]:
+    with get_session() as session:
+        run = session.execute(
+            select(EvaluationRun).order_by(EvaluationRun.started_at.desc())
+        ).scalars().first()
+        if run is None:
+            return None
+        case_results = session.execute(
+            select(EvaluationCaseResult).where(EvaluationCaseResult.evaluation_run_id == run.evaluation_run_id)
+        ).scalars().all()
+        return _evaluation_run_dict(run, [_evaluation_case_result_dict(c) for c in case_results])
+
+
+def get_evaluation_run(evaluation_run_id: str) -> Optional[dict]:
+    with get_session() as session:
+        run = session.get(EvaluationRun, evaluation_run_id)
+        if run is None:
+            return None
+        case_results = session.execute(
+            select(EvaluationCaseResult).where(EvaluationCaseResult.evaluation_run_id == run.evaluation_run_id)
+        ).scalars().all()
+        return _evaluation_run_dict(run, [_evaluation_case_result_dict(c) for c in case_results])
+
+
+def get_evaluation_run_history(limit: int = 20) -> list[dict]:
+    """Descending by started_at (most recent first) -- section 28.2's 'evaluation
+    run trend over time' chart reads this without needing per-case detail, so
+    case_results are omitted here for size; fetch a single run via
+    get_evaluation_run() for its breakdown."""
+    with get_session() as session:
+        runs = session.execute(
+            select(EvaluationRun).order_by(EvaluationRun.started_at.desc()).limit(limit)
+        ).scalars().all()
+        return [_evaluation_run_dict(r, []) for r in runs]

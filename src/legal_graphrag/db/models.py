@@ -403,3 +403,52 @@ class ChatMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     document: Mapped["Document"] = relationship(back_populates="chat_messages")
+
+
+class EvaluationRun(Base):
+    """Section 20-28's evaluation-run persistence (Phase 10 task 10): one row per
+    invocation of scripts/run_evaluation.py, append-only -- a run is never edited
+    after it finishes, only ever superseded by a newer run. metrics stores every
+    metric domain's aggregate scores in one JSON blob (clause/risk/confidentiality/
+    ocr/retrieval/ragas/citation), matching how DecisionBrief already stores its
+    13 sections as one JSON payload rather than one column per domain -- nothing
+    queries into a single metric independently of the run it belongs to.
+    dataset_versions records which labeled dataset file+version each domain was
+    scored against (section 10's 'dataset size/version visible' exit criterion),
+    since different domains use different dataset files today."""
+    __tablename__ = "evaluation_run"
+
+    evaluation_run_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    triggered_by: Mapped[str] = mapped_column(String(100), nullable=True)  # username, or "cli"/"scheduled"
+    commit_sha: Mapped[str] = mapped_column(String(40), nullable=True)
+    gemini_model: Mapped[str] = mapped_column(String(100), nullable=True)
+    embedding_model: Mapped[str] = mapped_column(String(100), nullable=True)
+    dataset_versions: Mapped[dict] = mapped_column(JSON, nullable=True)  # {"clause_risk": "labeled_eval_set.json@<sha256>", ...}
+    metrics: Mapped[dict] = mapped_column(JSON, nullable=False)  # {"clause": {...}, "risk": {...}, "ragas": {...}, ...}
+    case_counts: Mapped[dict] = mapped_column(JSON, nullable=True)  # {"clause_risk": 9, "confidentiality": 11, ...}
+    status: Mapped[str] = mapped_column(String(30), default="completed")  # completed/failed/partial
+    error_detail: Mapped[str] = mapped_column(Text, nullable=True)  # set when status != "completed"
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    case_results: Mapped[list["EvaluationCaseResult"]] = relationship(back_populates="evaluation_run", cascade="all, delete-orphan")
+
+
+class EvaluationCaseResult(Base):
+    """One scored case within an EvaluationRun -- the per-document/per-question
+    breakdown behind the run's aggregate metrics.json, so a reviewer can drill
+    from 'clause recall dropped this run' into which specific document/case
+    regressed (section 28.3's 'passed/failed cases' inspection requirement)."""
+    __tablename__ = "evaluation_case_result"
+
+    evaluation_case_result_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    evaluation_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("evaluation_run.evaluation_run_id"), nullable=False)
+    domain: Mapped[str] = mapped_column(String(50), nullable=False)  # clause/risk/confidentiality/ocr/retrieval/ragas/citation
+    case_label: Mapped[str] = mapped_column(String(300), nullable=False)  # filename, question, or other case identifier
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=True)  # null when the domain has no pass/fail notion, only continuous scores
+    scores: Mapped[dict] = mapped_column(JSON, nullable=True)  # {"clause_recall": 0.8, ...} -- this case's own metric values
+    detail: Mapped[dict] = mapped_column(JSON, nullable=True)  # domain-specific extra (found/missed/expected, etc.)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    evaluation_run: Mapped["EvaluationRun"] = relationship(back_populates="case_results")
