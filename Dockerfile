@@ -27,9 +27,12 @@ FROM python:3.10-slim AS runtime
 
 # poppler-utils: pdf2image's convert_from_path (OCR page rasterization)
 # tesseract-ocr: pytesseract's OCR engine
+# gosu: lets the entrypoint start as root (to chown volume mounts) then drop
+# to appuser before exec'ing uvicorn, without su's TTY/signal-forwarding quirks
 RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     tesseract-ocr \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
@@ -47,11 +50,16 @@ RUN pip install --no-cache-dir --no-deps --no-build-isolation -e .
 RUN useradd --create-home --shell /bin/bash appuser \
     && mkdir -p /app/data/chroma_db /app/data/uploads \
     && chown -R appuser:appuser /app /opt/venv
-USER appuser
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=10 --start-period=120s \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
+# Stays root here so the entrypoint can chown volume mounts, then drops to
+# appuser itself before exec'ing the CMD below (see docker-entrypoint.sh).
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["uvicorn", "legal_graphrag.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
