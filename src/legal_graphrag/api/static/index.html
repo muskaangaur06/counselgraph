@@ -662,6 +662,17 @@
       </div>
       <div id="evalResult"></div>
     </div>
+
+    <div class="exhibit">
+      <span class="exhibit-label">Evaluation / Stats</span>
+      <h3>AI Evaluation Framework (section 28)</h3>
+      <div class="doc-sub" style="margin-bottom:14px;">Real persisted evaluation runs from scripts/run_evaluation.py -- clause/risk/confidentiality/OCR/retrieval/RAGAS/citation metrics. No trigger-from-UI button: a run makes real LLM calls and can take minutes, run it from a terminal with `.venv/Scripts/python.exe scripts/run_evaluation.py`, then refresh here.</div>
+      <div class="btn-row" style="margin-top:0;">
+        <button class="secondary" id="evalRunsRefresh">Refresh</button>
+        <select id="evalRunSelect" style="display:none;"></select>
+      </div>
+      <div id="evalRunsResult"></div>
+    </div>
    </div>
   </div>
 </div>
@@ -2628,11 +2639,168 @@ document.getElementById("evalRefresh").addEventListener("click", async () => {
   }
 });
 
+// ============================= Evaluation Runs (Phase 10/11: section 28) =============================
+
+// Internal targets only, never claimed as "industry standard" (section 28.4) --
+// these are CounselGraph's own goals, shown alongside the measured value so a
+// reviewer can see pass/warning/fail without a fabricated external benchmark.
+const EVAL_TARGETS = {
+  "clause_risk.avg_clause_recall": 0.8,
+  "clause_risk.avg_risk_precision": 0.6,
+  "confidentiality.macro_f1": 0.75,
+  "retrieval.recall_at_k": 0.8,
+  "retrieval.wrong_tenant_retrieval_rate": 0.0,
+  "ragas.faithfulness": 0.7,
+  "ragas.context_precision": 0.7,
+  "citation.citation_recall": 0.7,
+};
+
+function _evalStatus(value, target, lowerIsBetter) {
+  if (value === null || value === undefined) return "not_evaluated";
+  if (target === undefined) return "not_evaluated";
+  const passed = lowerIsBetter ? value <= target : value >= target;
+  if (passed) return "pass";
+  const warnBand = lowerIsBetter ? target * 2 : target * 0.75;
+  const warning = lowerIsBetter ? value <= warnBand : value >= warnBand;
+  return warning ? "warning" : "fail";
+}
+
+function _statusStamp(status) {
+  const map = { pass: ["low", "pass"], warning: ["medium", "warning"], fail: ["high", "fail"], not_evaluated: ["neutral", "not evaluated"] };
+  const [cls, label] = map[status] || map.not_evaluated;
+  return `<span class="stamp ${cls}">${label}</span>`;
+}
+
+function _summaryCard(label, domain, key, lowerIsBetter) {
+  const value = window.__evalRunSelected?.metrics?.[domain]?.[key];
+  const target = EVAL_TARGETS[`${domain}.${key}`];
+  const status = _evalStatus(value, target, lowerIsBetter);
+  const displayValue = (value === null || value === undefined) ? "N/A" : (typeof value === "number" ? value.toFixed(3) : escapeHtml(String(value)));
+  return `
+    <div class="docket-item">
+      <div class="num">${displayValue}</div>
+      <div class="cap">${escapeHtml(label)}</div>
+      <div style="margin-top:6px;">${_statusStamp(status)}</div>
+      ${target !== undefined ? `<div class="clause-meta" style="margin-top:4px;">target ${lowerIsBetter ? "&le;" : "&ge;"} ${target}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderEvaluationRun(run) {
+  window.__evalRunSelected = run;
+
+  if (!run || run.computed === false) {
+    return `<div class="empty-note">No evaluation run persisted yet. Run <code>.venv/Scripts/python.exe scripts/run_evaluation.py</code> from a terminal, then click Refresh.</div>`;
+  }
+
+  let html = `
+    <div class="clause-meta" style="margin-bottom:10px;">
+      Run ${escapeHtml(run.evaluation_run_id.slice(0, 8))} &middot; ${escapeHtml(run.started_at || "")}
+      &middot; ${escapeHtml(run.duration_seconds != null ? run.duration_seconds + "s" : "")}
+      &middot; triggered by ${escapeHtml(run.triggered_by || "unknown")}
+      ${run.commit_sha ? `&middot; commit ${escapeHtml(run.commit_sha.slice(0, 8))}` : ""}
+      &middot; model ${escapeHtml(run.gemini_model || "n/a")}
+      &middot; status ${_statusStamp(run.status === "completed" ? "pass" : "fail")}
+    </div>
+  `;
+
+  html += `<div class="docket-strip">
+    ${_summaryCard("Clause Recall", "clause_risk", "avg_clause_recall", false)}
+    ${_summaryCard("Risk Precision", "clause_risk", "avg_risk_precision", false)}
+    ${_summaryCard("Confidentiality Macro F1", "confidentiality", "macro_f1", false)}
+    ${_summaryCard("RAGAS Faithfulness", "ragas", "faithfulness", false)}
+  </div>`;
+  html += `<div class="docket-strip">
+    ${_summaryCard("Context Precision", "ragas", "context_precision", false)}
+    ${_summaryCard("Citation Recall", "citation", "citation_recall", false)}
+    ${_summaryCard("Retrieval Recall@K", "retrieval", "recall_at_k", false)}
+    ${_summaryCard("Wrong-Tenant Retrieval Rate", "retrieval", "wrong_tenant_retrieval_rate", true)}
+  </div>`;
+
+  const domainOrder = ["clause_risk", "confidentiality", "ocr", "retrieval", "ragas", "citation"];
+  for (const domain of domainOrder) {
+    const m = run.metrics?.[domain];
+    if (!m) continue;
+    html += `
+      <div class="exhibit" style="margin-top:14px;">
+        <span class="exhibit-label">${escapeHtml(domain.replace(/_/g, " "))}</span>
+        <h3>Domain Metrics</h3>
+        <div class="clause-meta">Cases: ${run.case_counts?.[domain] ?? "n/a"}${run.dataset_versions?.[domain] ? ` &middot; dataset v${escapeHtml(run.dataset_versions[domain])}` : ""}</div>
+        <pre class="raw" style="margin-top:8px;">${escapeHtml(JSON.stringify(m, null, 2))}</pre>
+      </div>
+    `;
+  }
+
+  const caseResults = run.case_results || [];
+  if (caseResults.length) {
+    html += `
+      <div class="exhibit" style="margin-top:14px;">
+        <span class="exhibit-label">Error Explorer</span>
+        <h3>Per-Case Results</h3>
+        <table style="width:100%; margin-top:6px; font-family:var(--sans); font-size:14px;">
+          <thead><tr>
+            <th style="text-align:left; padding:4px 8px;">Domain</th>
+            <th style="text-align:left; padding:4px 8px;">Case</th>
+            <th style="text-align:left; padding:4px 8px;">Passed</th>
+            <th style="text-align:left; padding:4px 8px;">Scores</th>
+          </tr></thead>
+          <tbody>
+            ${caseResults.map(c => `
+              <tr style="border-top:1px solid var(--rule);">
+                <td style="padding:4px 8px;">${escapeHtml(c.domain)}</td>
+                <td style="padding:4px 8px;">${escapeHtml(c.case_label)}</td>
+                <td style="padding:4px 8px;">${c.passed === null ? '<span class="clause-meta">n/a</span>' : (c.passed ? _statusStamp("pass") : _statusStamp("fail"))}</td>
+                <td style="padding:4px 8px; font-size:12.5px;">${escapeHtml(JSON.stringify(c.scores || {}))}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  return html;
+}
+
+async function loadEvaluationRuns() {
+  const out = document.getElementById("evalRunsResult");
+  const select = document.getElementById("evalRunSelect");
+  out.innerHTML = `<div class="empty-note">Loading&hellip;</div>`;
+  try {
+    const history = await apiFetch("/api/evaluation-runs?limit=20");
+    const runs = history.runs || [];
+    if (!runs.length) {
+      select.style.display = "none";
+      out.innerHTML = renderEvaluationRun(null);
+      return;
+    }
+    select.style.display = "";
+    select.innerHTML = runs.map((r, i) => `<option value="${escapeHtml(r.evaluation_run_id)}">${i === 0 ? "Latest -- " : ""}${escapeHtml(r.started_at || r.evaluation_run_id.slice(0, 8))}</option>`).join("");
+    const latest = await apiFetch(`/api/evaluation-runs/${encodeURIComponent(runs[0].evaluation_run_id)}`);
+    out.innerHTML = renderEvaluationRun(latest);
+  } catch (e) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+document.getElementById("evalRunSelect").addEventListener("change", async (e) => {
+  const out = document.getElementById("evalRunsResult");
+  out.innerHTML = `<div class="empty-note">Loading&hellip;</div>`;
+  try {
+    const run = await apiFetch(`/api/evaluation-runs/${encodeURIComponent(e.target.value)}`);
+    out.innerHTML = renderEvaluationRun(run);
+  } catch (err) {
+    out.innerHTML = `<div class="notice error">${escapeHtml(err.message)}</div>`;
+  }
+});
+
+document.getElementById("evalRunsRefresh").addEventListener("click", loadEvaluationRuns);
+
 document.getElementById("dashboardRefresh").addEventListener("click", loadDashboard);
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
-    if (tab.dataset.view === "dashboard") loadDashboard();
+    if (tab.dataset.view === "dashboard") { loadDashboard(); loadEvaluationRuns(); }
     if (tab.dataset.view === "portfolio") loadPortfolioOverview();
     if (tab.dataset.view === "approval") loadApprovalOverview();
   });
