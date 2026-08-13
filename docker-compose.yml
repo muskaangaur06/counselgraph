@@ -80,6 +80,12 @@ services:
       - uploads_data:/app/data/uploads
     env_file:
       - .env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
     environment:
       ENVIRONMENT: production
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-legal_graphrag}:${POSTGRES_PASSWORD:-change-this-password}@postgres:5432/${POSTGRES_DB:-legal_graphrag}

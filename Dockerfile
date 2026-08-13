@@ -44,6 +44,14 @@ COPY scripts ./scripts
 
 RUN pip install --no-cache-dir --no-deps --no-build-isolation -e .
 
+RUN useradd --create-home --shell /bin/bash appuser \
+    && mkdir -p /app/data/chroma_db /app/data/uploads \
+    && chown -R appuser:appuser /app /opt/venv
+USER appuser
+
 EXPOSE 8000
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=10 --start-period=120s \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 CMD ["uvicorn", "legal_graphrag.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
