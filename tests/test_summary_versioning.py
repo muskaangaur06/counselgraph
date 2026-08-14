@@ -15,7 +15,7 @@ def fresh_db(monkeypatch):
     os.close(fd)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{path}")
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
     session_module.init_db()
 
@@ -26,12 +26,12 @@ def fresh_db(monkeypatch):
 
 
 def _make_document(fresh_db):
-    from legal_graphrag.db.repository import create_document
+    from counsel_graph.db.repository import create_document
     return create_document(filename="test.pdf", status="ready_for_review")
 
 
 def test_initial_ai_generated_version_is_marked_correctly(fresh_db):
-    from legal_graphrag.db.repository import add_summary_version
+    from counsel_graph.db.repository import add_summary_version
 
     document_id = _make_document(fresh_db)
     v1 = add_summary_version(document_id, "Initial AI-generated summary.", edited_by=None)
@@ -41,7 +41,7 @@ def test_initial_ai_generated_version_is_marked_correctly(fresh_db):
 
 
 def test_human_edit_creates_new_version_not_overwrite(fresh_db):
-    from legal_graphrag.db.repository import add_summary_version, get_summary_history
+    from counsel_graph.db.repository import add_summary_version, get_summary_history
 
     document_id = _make_document(fresh_db)
     add_summary_version(document_id, "Version one text.", edited_by=None)
@@ -58,7 +58,7 @@ def test_human_edit_creates_new_version_not_overwrite(fresh_db):
 def test_latest_summary_version_returns_most_recent_not_oldest(fresh_db):
     """Regression test for the pre-existing bug: document detail used to read
     summary_versions[0] under ascending order, which is the OLDEST version."""
-    from legal_graphrag.db.repository import add_summary_version, get_latest_summary_version
+    from counsel_graph.db.repository import add_summary_version, get_latest_summary_version
 
     document_id = _make_document(fresh_db)
     add_summary_version(document_id, "Old text.", edited_by=None)
@@ -70,7 +70,7 @@ def test_latest_summary_version_returns_most_recent_not_oldest(fresh_db):
 
 
 def test_approving_a_version_does_not_affect_others(fresh_db):
-    from legal_graphrag.db.repository import add_summary_version, approve_summary_version, get_summary_history
+    from counsel_graph.db.repository import add_summary_version, approve_summary_version, get_summary_history
 
     document_id = _make_document(fresh_db)
     add_summary_version(document_id, "v1 text.", edited_by=None)
@@ -89,7 +89,7 @@ def test_editing_after_approval_preserves_approved_version(fresh_db):
     """Section 14.1: do not overwrite approved summary history. An edit after
     approval must create a new draft version, leaving the approved one intact
     and still readable."""
-    from legal_graphrag.db.repository import add_summary_version, approve_summary_version, get_summary_history
+    from counsel_graph.db.repository import add_summary_version, approve_summary_version, get_summary_history
 
     document_id = _make_document(fresh_db)
     add_summary_version(document_id, "Original text.", edited_by=None)
@@ -106,7 +106,7 @@ def test_editing_after_approval_preserves_approved_version(fresh_db):
 def test_restore_creates_new_version_does_not_delete_history(fresh_db):
     """Section 14.1: old versions remain available. Restoring v1 while v2/v3
     exist must not delete v2/v3 -- it creates a v4 with v1's content."""
-    from legal_graphrag.db.repository import add_summary_version, restore_summary_version, get_summary_history
+    from counsel_graph.db.repository import add_summary_version, restore_summary_version, get_summary_history
 
     document_id = _make_document(fresh_db)
     add_summary_version(document_id, "v1 original.", edited_by=None)
@@ -127,7 +127,7 @@ def test_restore_creates_new_version_does_not_delete_history(fresh_db):
 
 
 def test_restoring_unknown_version_raises(fresh_db):
-    from legal_graphrag.db.repository import add_summary_version, restore_summary_version
+    from counsel_graph.db.repository import add_summary_version, restore_summary_version
 
     document_id = _make_document(fresh_db)
     add_summary_version(document_id, "v1.", edited_by=None)
@@ -136,7 +136,7 @@ def test_restoring_unknown_version_raises(fresh_db):
 
 
 def test_approving_unknown_version_raises(fresh_db):
-    from legal_graphrag.db.repository import add_summary_version, approve_summary_version
+    from counsel_graph.db.repository import add_summary_version, approve_summary_version
 
     document_id = _make_document(fresh_db)
     add_summary_version(document_id, "v1.", edited_by=None)
@@ -146,14 +146,14 @@ def test_approving_unknown_version_raises(fresh_db):
 
 def test_document_detail_endpoint_shows_latest_not_oldest_summary(fresh_db, monkeypatch):
     """API-level regression test for the executive_summary ordering bug."""
-    import legal_graphrag.api.main as main_module
+    import counsel_graph.api.main as main_module
     from fastapi.testclient import TestClient
 
     monkeypatch.delenv("NEO4J_URI", raising=False)
     monkeypatch.setenv("REVIEWERS", '[{"username":"admin1","password":"pw","role":"admin"}]')
     monkeypatch.setattr(main_module, "preload_models", lambda **kwargs: None)
 
-    from legal_graphrag.db.repository import create_document, add_summary_version
+    from counsel_graph.db.repository import create_document, add_summary_version
 
     document_id = create_document(filename="test.pdf", status="ready_for_review")
     add_summary_version(document_id, "Old summary text.", edited_by=None)

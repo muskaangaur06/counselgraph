@@ -3,8 +3,8 @@ citation recall/correctness), independent of any live LLM call. Confidentiality/
 clause/risk/OCR/retrieval domain runners need live models/LLM calls and are
 exercised by scripts/run_evaluation.py directly, not re-tested here."""
 
-from legal_graphrag.graphrag.confidentiality_metrics import _macro_f1
-from legal_graphrag.agents.citation_metrics import run_citation_eval
+from counsel_graph.graphrag.confidentiality_metrics import _macro_f1
+from counsel_graph.agents.citation_metrics import run_citation_eval
 
 
 def test_macro_f1_perfect_predictions():

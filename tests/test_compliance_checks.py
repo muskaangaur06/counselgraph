@@ -5,7 +5,7 @@ clauses, unusual governing law, missing environmental/data-protection clauses
 detect_missing_clauses), plus auto-renewal and value threshold. Pure functions,
 no DB/LLM needed."""
 
-from legal_graphrag.graphrag.compliance import (
+from counsel_graph.graphrag.compliance import (
     check_unusual_governing_law,
     check_value_threshold,
     detect_auto_renewal,

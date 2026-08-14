@@ -90,4 +90,4 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=10 --start-period=120s \
 # Stays root here so the entrypoint can chown volume mounts, then drops to
 # appuser itself before exec'ing the CMD below (see docker-entrypoint.sh).
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["uvicorn", "legal_graphrag.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "counsel_graph.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

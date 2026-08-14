@@ -36,16 +36,16 @@ def app_client(monkeypatch):
         '{"username":"senior1","password":"pw","role":"senior_counsel"}]'
     ))
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
 
-    monkeypatch.setattr("legal_graphrag.agents.legal_pipeline.get_store", lambda: _FakeGraphStore())
+    monkeypatch.setattr("counsel_graph.agents.legal_pipeline.get_store", lambda: _FakeGraphStore())
 
-    import legal_graphrag.api.main as main_module
+    import counsel_graph.api.main as main_module
     monkeypatch.setattr(main_module, "preload_models", lambda **kwargs: None)
 
     from fastapi.testclient import TestClient
-    from legal_graphrag.api.main import app
+    from counsel_graph.api.main import app
     with TestClient(app) as c:
         yield c
 
@@ -59,7 +59,7 @@ def _login(client, username, password="pw"):
 
 
 def _make_document(**kwargs):
-    from legal_graphrag.db.repository import create_document
+    from counsel_graph.db.repository import create_document
     defaults = dict(filename="test.pdf", status="ready_for_review")
     defaults.update(kwargs)
     return create_document(**defaults)
@@ -85,8 +85,8 @@ def test_query_start_blocks_reviewer_from_highly_confidential_document(app_clien
 def test_query_start_allows_senior_counsel_on_highly_confidential_document(app_client):
     document_id = _make_document(confidentiality_level="highly_confidential")
     _login(app_client, "senior1")
-    with patch("legal_graphrag.agents.legal_pipeline.hybrid_search", return_value=[]), \
-         patch("legal_graphrag.agents.legal_pipeline.verify_evidence",
+    with patch("counsel_graph.agents.legal_pipeline.hybrid_search", return_value=[]), \
+         patch("counsel_graph.agents.legal_pipeline.verify_evidence",
                return_value={"sufficient": False, "reasoning": "no hits", "gaps": [], "contradictions": []}):
         resp = app_client.post("/api/query/jobs", json={
             "question": "What is the liability cap?", "collection_name": "x", "document_id": document_id,
@@ -97,8 +97,8 @@ def test_query_start_allows_senior_counsel_on_highly_confidential_document(app_c
 def test_query_start_works_without_document_id(app_client):
     """document_id is optional -- a caller with no document selected can still ask."""
     _login(app_client, "junior1")
-    with patch("legal_graphrag.agents.legal_pipeline.hybrid_search", return_value=[]), \
-         patch("legal_graphrag.agents.legal_pipeline.verify_evidence",
+    with patch("counsel_graph.agents.legal_pipeline.hybrid_search", return_value=[]), \
+         patch("counsel_graph.agents.legal_pipeline.verify_evidence",
                return_value={"sufficient": False, "reasoning": "no hits", "gaps": [], "contradictions": []}):
         resp = app_client.post("/api/query/jobs", json={
             "question": "What is the liability cap?", "collection_name": "x",
@@ -114,7 +114,7 @@ def test_chat_history_endpoint_requires_confidentiality_access(app_client):
 
 
 def test_chat_history_endpoint_returns_recorded_messages(app_client):
-    from legal_graphrag.db.repository import record_chat_message
+    from counsel_graph.db.repository import record_chat_message
 
     document_id = _make_document()
     record_chat_message(document_id, "What is the notice period?", "60 days.", "answered", citations=["Clause 5"])
@@ -128,7 +128,7 @@ def test_chat_history_endpoint_returns_recorded_messages(app_client):
 
 
 def test_clear_chat_endpoint_soft_clears(app_client):
-    from legal_graphrag.db.repository import record_chat_message, get_chat_history
+    from counsel_graph.db.repository import record_chat_message, get_chat_history
 
     document_id = _make_document()
     record_chat_message(document_id, "q1", "a1", "answered")

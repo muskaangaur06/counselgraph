@@ -17,7 +17,7 @@ def fresh_db(monkeypatch):
     os.close(fd)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{path}")
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
 
     yield session_module
@@ -35,7 +35,7 @@ def test_init_db_creates_tenancy_tables(fresh_db):
 
 
 def test_init_db_retrofits_columns_onto_existing_org_profile(fresh_db):
-    from legal_graphrag.db.models import OrgProfile
+    from counsel_graph.db.models import OrgProfile
 
     fresh_db.init_db()
     with fresh_db.get_session() as s:
@@ -49,7 +49,7 @@ def test_init_db_retrofits_columns_onto_existing_org_profile(fresh_db):
 
 
 def test_seed_defaults_creates_one_customer_and_backfills_org_profiles(fresh_db):
-    from legal_graphrag.db.models import Customer, OrgProfile
+    from counsel_graph.db.models import Customer, OrgProfile
 
     fresh_db.init_db()
     with fresh_db.get_session() as s:
@@ -69,7 +69,7 @@ def test_seed_defaults_creates_one_customer_and_backfills_org_profiles(fresh_db)
 
 
 def test_seed_defaults_is_idempotent(fresh_db):
-    from legal_graphrag.db.models import Customer, Jurisdiction
+    from counsel_graph.db.models import Customer, Jurisdiction
 
     fresh_db.init_db()
     fresh_db.seed_defaults()
@@ -84,7 +84,7 @@ def test_seed_defaults_does_not_reassign_already_scoped_org_profile(fresh_db):
     """An org_profile already assigned to a (future, hypothetical) different
     customer must not be silently reassigned to the default customer on a
     later seed_defaults() call."""
-    from legal_graphrag.db.models import Customer, OrgProfile
+    from counsel_graph.db.models import Customer, OrgProfile
 
     fresh_db.init_db()
     with fresh_db.get_session() as s:

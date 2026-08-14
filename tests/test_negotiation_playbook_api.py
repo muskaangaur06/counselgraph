@@ -22,14 +22,14 @@ def app_client(monkeypatch):
         '{"username":"senior1","password":"pw","role":"senior_counsel"}]'
     ))
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
 
-    import legal_graphrag.api.main as main_module
+    import counsel_graph.api.main as main_module
     monkeypatch.setattr(main_module, "preload_models", lambda **kwargs: None)
 
     from fastapi.testclient import TestClient
-    from legal_graphrag.api.main import app
+    from counsel_graph.api.main import app
     with TestClient(app) as c:
         yield c
 
@@ -43,21 +43,21 @@ def _login(client, username, password="pw"):
 
 
 def _make_document(**kwargs):
-    from legal_graphrag.db.repository import create_document
+    from counsel_graph.db.repository import create_document
     defaults = dict(filename="test.pdf", status="ready_for_review")
     defaults.update(kwargs)
     return create_document(**defaults)
 
 
 def _make_clause(document_id, clause_type, text):
-    from legal_graphrag.db.repository import upsert_clause
+    from counsel_graph.db.repository import upsert_clause
     clause_id, _created = upsert_clause(document_id=document_id, clause_type=clause_type, extracted_text=text)
     return clause_id
 
 
 def _make_flagged_clause_with_playbook(document_id, clause_type, text, severity, confidence=0.5,
                                         fallback_source="llm_generated"):
-    from legal_graphrag.db.repository import create_risk_flag, create_playbook_entry
+    from counsel_graph.db.repository import create_risk_flag, create_playbook_entry
     clause_id = _make_clause(document_id, clause_type, text)
     risk_flag_id = create_risk_flag(
         clause_id=clause_id, severity=severity, rationale=f"{clause_type} looks non-standard",
@@ -132,7 +132,7 @@ def test_negotiation_playbook_allows_senior_counsel_on_highly_confidential_docum
 def test_negotiation_playbook_includes_document_level_flags(app_client):
     """Document-level risk categories (e.g. missing_clause) have no clause_id --
     these must still surface with clause_type falling back to the flag's category."""
-    from legal_graphrag.db.repository import create_risk_flag, create_playbook_entry
+    from counsel_graph.db.repository import create_risk_flag, create_playbook_entry
     document_id = _make_document()
     risk_flag_id = create_risk_flag(
         clause_id=None, document_id=document_id, severity="medium",

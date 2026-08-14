@@ -7,7 +7,7 @@ knows. These cover _derive_counterparty's preference order and its refusal to
 guess when no role disambiguates the sides.
 """
 
-from legal_graphrag.graphrag.langgraph_agent import _derive_counterparty
+from counsel_graph.graphrag.langgraph_agent import _derive_counterparty
 
 
 def test_explicit_vendor_name_wins_over_extracted_parties():

@@ -26,7 +26,7 @@ import sys
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
 
-from legal_graphrag.ingestion.pdf_pipeline import (  # noqa: E402
+from counsel_graph.ingestion.pdf_pipeline import (  # noqa: E402
     extract_page_content,
     detect_low_text_pages,
     ocr_pages,
@@ -34,13 +34,13 @@ from legal_graphrag.ingestion.pdf_pipeline import (  # noqa: E402
     compute_page_sections,
     chunk_pages,
 )
-from legal_graphrag.graphrag.extraction import (  # noqa: E402
+from counsel_graph.graphrag.extraction import (  # noqa: E402
     extract_clauses,
     flag_risks,
     detect_missing_clauses,
 )
-from legal_graphrag.db.dedup import clause_content_hash  # noqa: E402
-from legal_graphrag.graphrag.portfolio_conflicts import find_conflicting_clause_pairs  # noqa: E402
+from counsel_graph.db.dedup import clause_content_hash  # noqa: E402
+from counsel_graph.graphrag.portfolio_conflicts import find_conflicting_clause_pairs  # noqa: E402
 
 EVAL_SET_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "labeled_eval_set.json")
 SAMPLE_CONTRACTS_DIR = os.path.join(_REPO_ROOT, "data", "sample_contracts")

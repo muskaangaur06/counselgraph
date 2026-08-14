@@ -71,7 +71,7 @@ def _run_confidentiality_eval() -> dict | None:
     if not os.getenv("GEMINI_API_KEY"):
         print("  skipped (GEMINI_API_KEY not set)")
         return None
-    from legal_graphrag.graphrag.confidentiality_metrics import run_confidentiality_eval
+    from counsel_graph.graphrag.confidentiality_metrics import run_confidentiality_eval
     result = run_confidentiality_eval()
     return {
         "metrics": {"macro_f1": result["macro_f1"], "per_level": result["per_level"],
@@ -81,7 +81,7 @@ def _run_confidentiality_eval() -> dict | None:
 
 
 def _run_ocr_eval() -> dict:
-    from legal_graphrag.ingestion.ocr_metrics import run_ocr_eval
+    from counsel_graph.ingestion.ocr_metrics import run_ocr_eval
     result = run_ocr_eval()
     return {
         "metrics": {"avg_page_success_rate": result["avg_page_success_rate"],
@@ -92,7 +92,7 @@ def _run_ocr_eval() -> dict:
 
 
 def _run_retrieval_eval() -> dict | None:
-    from legal_graphrag.retrieval.retrieval_metrics import run_retrieval_eval
+    from counsel_graph.retrieval.retrieval_metrics import run_retrieval_eval
     result = run_retrieval_eval()
     if result.get("status") == "skipped":
         print(f"  skipped ({result['reason']})")
@@ -106,7 +106,7 @@ def _run_retrieval_eval() -> dict | None:
 
 
 def _run_citation_eval() -> dict:
-    from legal_graphrag.agents.citation_metrics import run_citation_eval
+    from counsel_graph.agents.citation_metrics import run_citation_eval
     result = run_citation_eval()
     return {
         "metrics": {"citation_recall": result["citation_recall"], "citation_correctness": result["citation_correctness"]},
@@ -157,8 +157,8 @@ def main() -> int:
     parser.add_argument("--triggered-by", default="cli")
     args = parser.parse_args()
 
-    from legal_graphrag.db.repository import create_evaluation_run
-    from legal_graphrag.db.session import init_db
+    from counsel_graph.db.repository import create_evaluation_run
+    from counsel_graph.db.session import init_db
 
     init_db()
 

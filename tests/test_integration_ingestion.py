@@ -10,7 +10,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from legal_graphrag.config import load_env
+from counsel_graph.config import load_env
 
 load_env()
 
@@ -32,7 +32,7 @@ _ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin@321")
 def client():
     """A fresh, logged-in TestClient per test. TestClient's cookie jar keeps
     the session cookie across requests automatically once logged in."""
-    from legal_graphrag.api.main import app
+    from counsel_graph.api.main import app
     with TestClient(app) as c:
         login_response = c.post(
             "/api/auth/login", json={"username": _ADMIN_USERNAME, "password": _ADMIN_PASSWORD}
@@ -88,14 +88,14 @@ def test_full_ingestion_flow_upload_approve_audit(client):
 
 
 def test_login_rejects_wrong_credentials():
-    from legal_graphrag.api.main import app
+    from counsel_graph.api.main import app
     with TestClient(app) as c:
         response = c.post("/api/auth/login", json={"username": "wrong", "password": "wrong"})
     assert response.status_code == 401
 
 
 def test_unauthenticated_request_rejected():
-    from legal_graphrag.api.main import app
+    from counsel_graph.api.main import app
     with TestClient(app) as c:
         with open(_SAMPLE_PDF, "rb") as f:
             response = c.post(

@@ -16,7 +16,7 @@ def fresh_db(monkeypatch):
     os.close(fd)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{path}")
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
     session_module.init_db()
 
@@ -27,7 +27,7 @@ def fresh_db(monkeypatch):
 
 
 def _make_document(**fields):
-    from legal_graphrag.db.repository import create_document
+    from counsel_graph.db.repository import create_document
     defaults = {"filename": "test.pdf", "status": "ready_for_review"}
     defaults.update(fields)
     return create_document(**defaults)
@@ -38,7 +38,7 @@ def _make_document(**fields):
 # ---------------------------------------------------------------------------
 
 def test_default_chain_is_reviewer_then_senior_counsel():
-    from legal_graphrag.graphrag.decision_brief import resolve_approval_chain
+    from counsel_graph.graphrag.decision_brief import resolve_approval_chain
 
     chain = resolve_approval_chain(
         {"monetary_value": None, "confidentiality_level": "internal"}, [], [], {},
@@ -47,7 +47,7 @@ def test_default_chain_is_reviewer_then_senior_counsel():
 
 
 def test_high_severity_risk_adds_business_head():
-    from legal_graphrag.graphrag.decision_brief import resolve_approval_chain
+    from counsel_graph.graphrag.decision_brief import resolve_approval_chain
 
     chain = resolve_approval_chain(
         {"monetary_value": None, "confidentiality_level": "internal"},
@@ -57,7 +57,7 @@ def test_high_severity_risk_adds_business_head():
 
 
 def test_over_value_threshold_adds_business_head():
-    from legal_graphrag.graphrag.decision_brief import resolve_approval_chain, DEFAULT_VALUE_THRESHOLD
+    from counsel_graph.graphrag.decision_brief import resolve_approval_chain, DEFAULT_VALUE_THRESHOLD
 
     chain = resolve_approval_chain(
         {"monetary_value": DEFAULT_VALUE_THRESHOLD + 1, "confidentiality_level": "internal"}, [], [], {},
@@ -66,7 +66,7 @@ def test_over_value_threshold_adds_business_head():
 
 
 def test_highly_confidential_adds_clo():
-    from legal_graphrag.graphrag.decision_brief import resolve_approval_chain
+    from counsel_graph.graphrag.decision_brief import resolve_approval_chain
 
     chain = resolve_approval_chain(
         {"monetary_value": None, "confidentiality_level": "highly_confidential"}, [], [], {},
@@ -79,7 +79,7 @@ def test_configured_org_policy_overrides_default_chain():
     an organization policy exists' -- a configured approval_policy is used
     verbatim, even for a low-value, low-risk, low-confidentiality document that
     would otherwise get just the 2-step default chain."""
-    from legal_graphrag.graphrag.decision_brief import resolve_approval_chain
+    from counsel_graph.graphrag.decision_brief import resolve_approval_chain
 
     overrides = {"approval_policy": [{"role": "clo", "reason": "org always requires CLO"}]}
     chain = resolve_approval_chain(
@@ -93,7 +93,7 @@ def test_configured_org_policy_overrides_default_chain():
 # ---------------------------------------------------------------------------
 
 def test_evidence_validation_passes_when_figures_match():
-    from legal_graphrag.graphrag.decision_brief import evidence_validate_sections
+    from counsel_graph.graphrag.decision_brief import evidence_validate_sections
 
     sections = {"financial_terms": "The contract value is 5,000,000."}
     brief_input = {"financial_terms": {"monetary_value": 5000000}}
@@ -103,7 +103,7 @@ def test_evidence_validation_passes_when_figures_match():
 
 
 def test_evidence_validation_flags_unsupported_figure():
-    from legal_graphrag.graphrag.decision_brief import evidence_validate_sections
+    from counsel_graph.graphrag.decision_brief import evidence_validate_sections
 
     sections = {"financial_terms": "The contract value is 9,999,999."}
     brief_input = {"financial_terms": {"monetary_value": 5000000}}
@@ -117,9 +117,9 @@ def test_evidence_validation_flags_unsupported_figure():
 # ---------------------------------------------------------------------------
 
 def test_generate_brief_falls_back_safely_when_llm_fails():
-    from legal_graphrag.graphrag.decision_brief import generate_decision_brief_sections
+    from counsel_graph.graphrag.decision_brief import generate_decision_brief_sections
 
-    with patch("legal_graphrag.graphrag.decision_brief.call_json", side_effect=RuntimeError("boom")):
+    with patch("counsel_graph.graphrag.decision_brief.call_json", side_effect=RuntimeError("boom")):
         result = generate_decision_brief_sections(
             {"filename": "t.pdf"}, [], [], None, [], [], [],
         )
@@ -129,13 +129,13 @@ def test_generate_brief_falls_back_safely_when_llm_fails():
 
 
 def test_generate_brief_uses_llm_result_when_valid():
-    from legal_graphrag.graphrag.decision_brief import generate_decision_brief_sections, BRIEF_SECTIONS
+    from counsel_graph.graphrag.decision_brief import generate_decision_brief_sections, BRIEF_SECTIONS
 
     fake_response = {s: "n/a" for s in BRIEF_SECTIONS}
     fake_response["first_reviewer_recommendation"] = {"recommendation": "approve", "rationale": "clean review"}
     fake_response["ai_recommendation"] = {"recommendation": "approve", "rationale": "no material risk"}
 
-    with patch("legal_graphrag.graphrag.decision_brief.call_json", return_value=fake_response):
+    with patch("counsel_graph.graphrag.decision_brief.call_json", return_value=fake_response):
         result = generate_decision_brief_sections(
             {"filename": "t.pdf"}, [], [], None, [{"action": "accept"}], [], [],
         )
@@ -148,7 +148,7 @@ def test_generate_brief_uses_llm_result_when_valid():
 # ---------------------------------------------------------------------------
 
 def test_create_decision_brief_persists_versioned_brief_and_chain(fresh_db):
-    from legal_graphrag.db.repository import create_decision_brief, get_latest_decision_brief
+    from counsel_graph.db.repository import create_decision_brief, get_latest_decision_brief
 
     document_id = _make_document()
     chain = [{"required_role": "reviewer", "reason": "first reviewer"},
@@ -164,7 +164,7 @@ def test_create_decision_brief_persists_versioned_brief_and_chain(fresh_db):
 
 
 def test_second_brief_is_a_new_version_not_an_overwrite(fresh_db):
-    from legal_graphrag.db.repository import create_decision_brief, get_decision_brief_history
+    from counsel_graph.db.repository import create_decision_brief, get_decision_brief_history
 
     document_id = _make_document()
     create_decision_brief(document_id, "admin", {"executive_summary": "v1"}, "escalate", True, [], [])
@@ -177,7 +177,7 @@ def test_second_brief_is_a_new_version_not_an_overwrite(fresh_db):
 
 
 def test_get_next_pending_approval_step_returns_first_in_sequence(fresh_db):
-    from legal_graphrag.db.repository import create_decision_brief, get_next_pending_approval_step
+    from counsel_graph.db.repository import create_decision_brief, get_next_pending_approval_step
 
     document_id = _make_document()
     chain = [{"required_role": "reviewer", "reason": "r1"}, {"required_role": "senior_counsel", "reason": "r2"}]
@@ -188,7 +188,7 @@ def test_get_next_pending_approval_step_returns_first_in_sequence(fresh_db):
 
 
 def test_decide_approval_step_advances_to_next_step(fresh_db):
-    from legal_graphrag.db.repository import (
+    from counsel_graph.db.repository import (
         create_decision_brief, get_next_pending_approval_step, decide_approval_step, get_decision_brief,
     )
 
@@ -207,7 +207,7 @@ def test_decide_approval_step_advances_to_next_step(fresh_db):
 
 
 def test_last_step_approval_marks_brief_approved(fresh_db):
-    from legal_graphrag.db.repository import (
+    from counsel_graph.db.repository import (
         create_decision_brief, get_next_pending_approval_step, decide_approval_step, get_decision_brief,
     )
 
@@ -224,7 +224,7 @@ def test_last_step_approval_marks_brief_approved(fresh_db):
 
 
 def test_reject_marks_brief_rejected_immediately(fresh_db):
-    from legal_graphrag.db.repository import (
+    from counsel_graph.db.repository import (
         create_decision_brief, get_next_pending_approval_step, decide_approval_step, get_decision_brief,
     )
 
@@ -242,7 +242,7 @@ def test_reject_marks_brief_rejected_immediately(fresh_db):
 
 
 def test_decide_already_decided_step_raises(fresh_db):
-    from legal_graphrag.db.repository import create_decision_brief, get_next_pending_approval_step, decide_approval_step
+    from counsel_graph.db.repository import create_decision_brief, get_next_pending_approval_step, decide_approval_step
 
     document_id = _make_document()
     chain = [{"required_role": "reviewer", "reason": "r1"}]
@@ -270,14 +270,14 @@ def app_client(monkeypatch):
         '{"username":"senior1","password":"pw","role":"senior_counsel"}]'
     ))
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
 
-    import legal_graphrag.api.main as main_module
+    import counsel_graph.api.main as main_module
     monkeypatch.setattr(main_module, "preload_models", lambda **kwargs: None)
 
     from fastapi.testclient import TestClient
-    from legal_graphrag.api.main import app
+    from counsel_graph.api.main import app
     with TestClient(app) as c:
         yield c
 
@@ -298,13 +298,13 @@ def test_generate_brief_rejects_when_review_incomplete(app_client):
 
 
 def test_generate_brief_succeeds_after_review_action_recorded(app_client):
-    from legal_graphrag.db.repository import record_review_action
+    from counsel_graph.db.repository import record_review_action
 
     document_id = _make_document()
     record_review_action(reviewer_username="junior1", role="reviewer", action="accept", document_id=document_id)
     _login(app_client, "junior1")
 
-    with patch("legal_graphrag.graphrag.decision_brief.call_json", side_effect=RuntimeError("no live LLM in tests")):
+    with patch("counsel_graph.graphrag.decision_brief.call_json", side_effect=RuntimeError("no live LLM in tests")):
         resp = app_client.post(f"/api/documents/{document_id}/decision-brief")
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -313,13 +313,13 @@ def test_generate_brief_succeeds_after_review_action_recorded(app_client):
 
 
 def test_junior_reviewer_cannot_decide_senior_counsel_step(app_client):
-    from legal_graphrag.db.repository import record_review_action
+    from counsel_graph.db.repository import record_review_action
 
     document_id = _make_document()
     record_review_action(reviewer_username="junior1", role="reviewer", action="accept", document_id=document_id)
     _login(app_client, "junior1")
 
-    with patch("legal_graphrag.graphrag.decision_brief.call_json", side_effect=RuntimeError("no live LLM in tests")):
+    with patch("counsel_graph.graphrag.decision_brief.call_json", side_effect=RuntimeError("no live LLM in tests")):
         gen_resp = app_client.post(f"/api/documents/{document_id}/decision-brief")
     brief = gen_resp.json()
 
@@ -339,13 +339,13 @@ def test_junior_reviewer_cannot_decide_senior_counsel_step(app_client):
 
 
 def test_reject_without_comments_is_rejected_by_api(app_client):
-    from legal_graphrag.db.repository import record_review_action
+    from counsel_graph.db.repository import record_review_action
 
     document_id = _make_document()
     record_review_action(reviewer_username="junior1", role="reviewer", action="accept", document_id=document_id)
     _login(app_client, "junior1")
 
-    with patch("legal_graphrag.graphrag.decision_brief.call_json", side_effect=RuntimeError("no live LLM in tests")):
+    with patch("counsel_graph.graphrag.decision_brief.call_json", side_effect=RuntimeError("no live LLM in tests")):
         gen_resp = app_client.post(f"/api/documents/{document_id}/decision-brief")
     brief = gen_resp.json()
     reviewer_step = brief["approval_steps"][0]

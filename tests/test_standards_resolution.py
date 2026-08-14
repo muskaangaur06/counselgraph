@@ -14,7 +14,7 @@ def fresh_db(monkeypatch):
     os.close(fd)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{path}")
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
     session_module.init_db()
 
@@ -25,7 +25,7 @@ def fresh_db(monkeypatch):
 
 
 def _make_customer(fresh_db, code="CUST_A", name="Customer A"):
-    from legal_graphrag.db.models import Customer
+    from counsel_graph.db.models import Customer
     with fresh_db.get_session() as s:
         c = Customer(code=code, name=name)
         s.add(c)
@@ -34,7 +34,7 @@ def _make_customer(fresh_db, code="CUST_A", name="Customer A"):
 
 
 def _make_org_profile(fresh_db, customer_id, name):
-    from legal_graphrag.db.models import OrgProfile
+    from counsel_graph.db.models import OrgProfile
     with fresh_db.get_session() as s:
         p = OrgProfile(name=name, customer_id=customer_id)
         s.add(p)
@@ -43,7 +43,7 @@ def _make_org_profile(fresh_db, customer_id, name):
 
 
 def _make_business_unit(fresh_db, customer_id, org_profile_id, name):
-    from legal_graphrag.db.models import BusinessUnit
+    from counsel_graph.db.models import BusinessUnit
     with fresh_db.get_session() as s:
         bu = BusinessUnit(customer_id=customer_id, org_profile_id=org_profile_id, name=name)
         s.add(bu)
@@ -52,7 +52,7 @@ def _make_business_unit(fresh_db, customer_id, org_profile_id, name):
 
 
 def _make_reference(fresh_db, **kwargs):
-    from legal_graphrag.db.models import KnowledgeReference
+    from counsel_graph.db.models import KnowledgeReference
     defaults = dict(clause_type="liability", reference_text="default text", source_kind="approved_clause",
                      approval_status="approved", version=1)
     defaults.update(kwargs)
@@ -64,7 +64,7 @@ def _make_reference(fresh_db, **kwargs):
 
 
 def test_resolves_at_most_specific_available_level(fresh_db):
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -80,7 +80,7 @@ def test_resolves_at_most_specific_available_level(fresh_db):
 
 
 def test_falls_back_to_organization_level_without_business_unit_context(fresh_db):
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -98,7 +98,7 @@ def test_falls_back_to_organization_level_without_business_unit_context(fresh_db
 def test_tcs_and_tata_steel_resolve_different_standards(fresh_db):
     """Section 11.4 demonstration: same clause_type, different org context ->
     different resolved standard, driven by data, not hardcoded UI text."""
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_id = _make_customer(fresh_db)
     tcs_id = _make_org_profile(fresh_db, customer_id, "TCS")
@@ -122,8 +122,8 @@ def test_wrong_customer_retrieval_is_impossible(fresh_db):
     org_profile_id/business_unit_id happen to collide (shouldn't in practice
     since they're separate UUID spaces, but the customer_id filter must still
     be the deciding boundary, not an afterthought)."""
-    from legal_graphrag.db.repository import find_standards_candidates
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.db.repository import find_standards_candidates
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_a = _make_customer(fresh_db, code="CUST_A", name="Customer A")
     customer_b = _make_customer(fresh_db, code="CUST_B", name="Customer B")
@@ -145,7 +145,7 @@ def test_customer_group_fallback_visible_across_org_profiles(fresh_db):
     """A KnowledgeReference row with no customer_id at all is a group-wide
     fallback (hierarchy level 8), visible regardless of which customer is asking
     -- this is deliberate (a shared baseline standard), not a tenant-isolation gap."""
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -158,7 +158,7 @@ def test_customer_group_fallback_visible_across_org_profiles(fresh_db):
 
 
 def test_conflicting_standards_at_same_level_are_logged_not_merged(fresh_db):
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -175,7 +175,7 @@ def test_conflicting_standards_at_same_level_are_logged_not_merged(fresh_db):
 
 def test_expired_standard_excluded_from_resolution(fresh_db):
     from datetime import datetime, timedelta, timezone
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -190,7 +190,7 @@ def test_expired_standard_excluded_from_resolution(fresh_db):
 
 
 def test_unapproved_standard_excluded_from_resolution(fresh_db):
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -205,7 +205,7 @@ def test_unapproved_standard_excluded_from_resolution(fresh_db):
 def test_org_wide_standard_applies_to_any_document_type(fresh_db):
     """A KnowledgeReference row with no document_type set is a wildcard -- it
     applies to every document type, not just documents that also have no type."""
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -220,7 +220,7 @@ def test_org_wide_standard_applies_to_any_document_type(fresh_db):
 def test_document_type_scoped_standard_does_not_leak_to_other_document_types(fresh_db):
     """A row scoped to document_type='supply' must never match a 'service'
     document, at ANY hierarchy level -- not even the unscoped fallback levels."""
-    from legal_graphrag.graphrag.standards import resolve_standards
+    from counsel_graph.graphrag.standards import resolve_standards
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -234,7 +234,7 @@ def test_document_type_scoped_standard_does_not_leak_to_other_document_types(fre
 
 
 def test_mandatory_requirement_surfaces_regardless_of_hierarchy_rank(fresh_db):
-    from legal_graphrag.graphrag.standards import check_mandatory_and_prohibited
+    from counsel_graph.graphrag.standards import check_mandatory_and_prohibited
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -248,7 +248,7 @@ def test_mandatory_requirement_surfaces_regardless_of_hierarchy_rank(fresh_db):
 
 
 def test_prohibited_clause_surfaces(fresh_db):
-    from legal_graphrag.graphrag.standards import check_mandatory_and_prohibited
+    from counsel_graph.graphrag.standards import check_mandatory_and_prohibited
 
     customer_id = _make_customer(fresh_db)
     org_id = _make_org_profile(fresh_db, customer_id, "Org A")
@@ -261,8 +261,8 @@ def test_prohibited_clause_surfaces(fresh_db):
 
 
 def test_seed_demo_standards_creates_three_org_profiles_with_distinct_liability_text(fresh_db):
-    from legal_graphrag.db.session import seed_defaults, seed_demo_standards
-    from legal_graphrag.db.models import OrgProfile, KnowledgeReference
+    from counsel_graph.db.session import seed_defaults, seed_demo_standards
+    from counsel_graph.db.models import OrgProfile, KnowledgeReference
 
     seed_defaults()
     seed_demo_standards()

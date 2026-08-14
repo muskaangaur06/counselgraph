@@ -1,4 +1,4 @@
-from legal_graphrag.graphrag.extraction import is_read_only_cypher
+from counsel_graph.graphrag.extraction import is_read_only_cypher
 
 
 def test_read_only_cypher_allows_match_return():

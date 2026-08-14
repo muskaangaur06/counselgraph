@@ -18,7 +18,7 @@ from langgraph.types import Command
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from legal_graphrag.ingestion.pdf_pipeline import (  # noqa: E402
+from counsel_graph.ingestion.pdf_pipeline import (  # noqa: E402
     extract_page_content,
     detect_low_text_pages,
     ocr_pages,
@@ -31,11 +31,11 @@ from legal_graphrag.ingestion.pdf_pipeline import (  # noqa: E402
     embed_and_store,
     DEFAULT_METADATA_DIR,
 )
-from legal_graphrag.graphrag.langgraph_agent import (  # noqa: E402
+from counsel_graph.graphrag.langgraph_agent import (  # noqa: E402
     build_ingestion_graph,
     build_query_graph,
 )
-from legal_graphrag.retrieval.hybrid_search import invalidate_bm25_cache  # noqa: E402
+from counsel_graph.retrieval.hybrid_search import invalidate_bm25_cache  # noqa: E402
 
 
 def _prompt_for_decision(interrupt_payload: dict, edit_capable: bool = False) -> dict:
@@ -128,7 +128,7 @@ def run_ask(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Legal GraphRAG demo CLI")
+    parser = argparse.ArgumentParser(description="CounselGraph demo CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     ingest = subparsers.add_parser("ingest", help="Ingest a PDF: vector store + GraphRAG extraction + approval")
@@ -147,7 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    from legal_graphrag.resources import preload_models
+    from counsel_graph.resources import preload_models
     print("Preloading models (embedder, reranker)...")
     preload_models(include_neo4j=False)  # Neo4j connects lazily on first actual use
 

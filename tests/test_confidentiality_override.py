@@ -21,13 +21,13 @@ def app_client(monkeypatch):
         '{"username":"senior1","password":"pw","role":"senior_counsel"}]'
     ))
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
 
-    import legal_graphrag.api.main as main_module
+    import counsel_graph.api.main as main_module
     monkeypatch.setattr(main_module, "preload_models", lambda **kwargs: None)
 
-    from legal_graphrag.api.main import app
+    from counsel_graph.api.main import app
     with TestClient(app) as c:
         yield c
 
@@ -41,7 +41,7 @@ def _login(client, username, password="pw"):
 
 
 def _make_document(confidentiality_level=None):
-    from legal_graphrag.db.repository import create_document
+    from counsel_graph.db.repository import create_document
     return create_document(filename="test.pdf", status="ready_for_review", confidentiality_level=confidentiality_level)
 
 
@@ -79,7 +79,7 @@ def test_override_writes_audit_record(app_client):
         json={"new_level": "confidential", "reason": "Contains pricing schedule."},
     )
 
-    from legal_graphrag.db.repository import get_confidentiality_history, get_audit_log
+    from counsel_graph.db.repository import get_confidentiality_history, get_audit_log
     history = get_confidentiality_history(document_id)
     assert len(history) == 1
     assert history[0]["source"] == "manual_override"
@@ -136,7 +136,7 @@ def test_access_control_changes_after_override(app_client):
         json={"new_level": "highly_confidential", "reason": "Escalating after review."},
     )
 
-    from legal_graphrag.api.security import create_session_token
+    from counsel_graph.api.security import create_session_token
     client_junior = TestClient(app_client.app)
     client_junior.cookies.set("lg_session", create_session_token("junior1", "reviewer"))
     resp = client_junior.get(f"/api/documents/{document_id}")

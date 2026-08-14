@@ -1,4 +1,4 @@
-from legal_graphrag.agents.prompts import (
+from counsel_graph.agents.prompts import (
     classify_query_style,
     classify_route,
     ALPHA_BY_QUERY_STYLE,

@@ -798,7 +798,7 @@ const API_BASE = "";
 
 // ============================= Theme (light/dark) =============================
 
-const THEME_STORAGE_KEY = "legal-graphrag-theme";
+const THEME_STORAGE_KEY = "counsel-graph-theme";
 
 function applyTheme(theme) {
   if (theme === "light") {
@@ -1004,7 +1004,7 @@ let ingestThreadId = null;
 // Persisted to the URL (?document=<id>) and localStorage so a page refresh (or
 // a link to a specific document) restores the same context instead of losing
 // it -- previously this was an in-memory-only variable.
-const CURRENT_DOCUMENT_STORAGE_KEY = "legal-graphrag-current-document";
+const CURRENT_DOCUMENT_STORAGE_KEY = "counsel-graph-current-document";
 
 function loadStoredCurrentDocument() {
   const urlDocumentId = new URLSearchParams(window.location.search).get("document");

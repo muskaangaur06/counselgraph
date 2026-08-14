@@ -4,7 +4,7 @@ A walkthrough covering the three scenarios the project is meant to demonstrate: 
 
 ## Setup
 
-1. Start the server: `uvicorn legal_graphrag.api.main:app --port 8000` (from `src/`, or with `PYTHONPATH` pointed at `src/`).
+1. Start the server: `uvicorn counsel_graph.api.main:app --port 8000` (from `src/`, or with `PYTHONPATH` pointed at `src/`).
 2. Open `http://localhost:8000/ui`. You'll land on a login screen.
 3. Sign in with the admin credentials from `.env` (`ADMIN_USERNAME`/`ADMIN_PASSWORD`, defaults to `admin` / `admin@321` if unchanged).
 

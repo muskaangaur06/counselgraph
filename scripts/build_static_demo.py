@@ -28,7 +28,7 @@ from pathlib import Path
 
 BASE = os.environ.get("DEMO_SOURCE_URL", "http://localhost:8000")
 REPO_ROOT = Path(__file__).resolve().parent.parent
-STATIC_DIR = REPO_ROOT / "src" / "legal_graphrag" / "api" / "static"
+STATIC_DIR = REPO_ROOT / "src" / "counsel_graph" / "api" / "static"
 DEMO_DIR = REPO_ROOT / "demo"
 API_DIR = DEMO_DIR / "api"
 

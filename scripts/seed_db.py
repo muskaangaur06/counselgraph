@@ -25,8 +25,8 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
 
 from sqlalchemy import select  # noqa: E402
 
-from legal_graphrag.db.session import get_session, init_db  # noqa: E402
-from legal_graphrag.db.models import KnowledgeReference, OrgProfile  # noqa: E402
+from counsel_graph.db.session import get_session, init_db  # noqa: E402
+from counsel_graph.db.models import KnowledgeReference, OrgProfile  # noqa: E402
 
 CLAUSE_LIBRARY_PATH = os.path.join(_REPO_ROOT, "data", "clause_library", "approved_clauses.json")
 RISK_TAXONOMY_PATH = os.path.join(_REPO_ROOT, "data", "risk_taxonomy.csv")

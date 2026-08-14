@@ -24,15 +24,15 @@ def app_client(monkeypatch):
         '{"username":"senior1","password":"pw","role":"senior_counsel"}]'
     ))
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
 
     # /api/review-actions never touches the embedder/reranker; skip loading them
     # so this test doesn't need the (memory-heavy, slow-on-this-host) real models
-    import legal_graphrag.api.main as main_module
+    import counsel_graph.api.main as main_module
     monkeypatch.setattr(main_module, "preload_models", lambda **kwargs: None)
 
-    from legal_graphrag.api.main import app
+    from counsel_graph.api.main import app
     with TestClient(app) as c:
         yield c
 
@@ -48,7 +48,7 @@ def _login(client, username, password="pw"):
 def _make_senior_counsel_risk_flag(client) -> str:
     """Creates a clause + risk flag directly via the repository layer (no
     document-processing pipeline needed) with assigned_role=senior_counsel."""
-    from legal_graphrag.db.repository import create_document, create_risk_flag, upsert_clause
+    from counsel_graph.db.repository import create_document, create_risk_flag, upsert_clause
 
     document_id = create_document(filename="test.pdf", status="ready_for_review")
     clause_id, _ = upsert_clause(document_id=document_id, clause_type="liability", extracted_text="Unlimited liability clause.")
@@ -82,7 +82,7 @@ def test_admin_can_act_on_senior_counsel_routed_flag(app_client):
 
 def test_reviewer_can_act_on_reviewer_routed_flag(app_client):
     _login(app_client, "junior1")
-    from legal_graphrag.db.repository import create_document, create_risk_flag, upsert_clause
+    from counsel_graph.db.repository import create_document, create_risk_flag, upsert_clause
 
     document_id = create_document(filename="test2.pdf", status="ready_for_review")
     clause_id, _ = upsert_clause(document_id=document_id, clause_type="termination", extracted_text="Standard termination clause.")

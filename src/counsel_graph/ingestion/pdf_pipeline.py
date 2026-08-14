@@ -57,7 +57,7 @@ CHUNK_SIZE_CHARS = 1000        # target characters per chunk
 CHUNK_OVERLAP_CHARS = 150      # overlap between consecutive chunks, preserves context across chunk boundaries
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
 
-# Resolved relative to the project root (two levels up from src/legal_graphrag/ingestion/)
+# Resolved relative to the project root (two levels up from src/counsel_graph/ingestion/)
 # so it works the same whether run from VS Code, a terminal, or Colab (with /content mounted).
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 CHROMA_PERSIST_DIR = os.path.join(_PROJECT_ROOT, "data", "chroma_db")

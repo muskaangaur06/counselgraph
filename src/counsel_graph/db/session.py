@@ -23,7 +23,7 @@ _SessionLocal = None
 
 _DEFAULT_SQLITE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    "data", "legal_graphrag.db",
+    "data", "counsel_graph.db",
 )
 
 

@@ -33,11 +33,11 @@ def fresh_db(monkeypatch):
     os.close(fd)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{path}")
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
     session_module.init_db()
 
-    monkeypatch.setattr("legal_graphrag.agents.legal_pipeline.get_store", lambda: _FakeGraphStore())
+    monkeypatch.setattr("counsel_graph.agents.legal_pipeline.get_store", lambda: _FakeGraphStore())
 
     yield session_module
 
@@ -46,14 +46,14 @@ def fresh_db(monkeypatch):
 
 
 def _make_document(**kwargs):
-    from legal_graphrag.db.repository import create_document
+    from counsel_graph.db.repository import create_document
     defaults = dict(filename="test.pdf", status="ready_for_review")
     defaults.update(kwargs)
     return create_document(**defaults)
 
 
 def _build_graph():
-    from legal_graphrag.agents.legal_pipeline import build_legal_agent_graph
+    from counsel_graph.agents.legal_pipeline import build_legal_agent_graph
     return build_legal_agent_graph()
 
 
@@ -71,9 +71,9 @@ _INSUFFICIENT_VERDICT = {"sufficient": False, "reasoning": "no relevant clause f
 def _ask_and_approve(app, thread_id, question, document_id=None, asked_by="reviewer1"):
     """Runs one full turn: start -> proceed past evidence checkpoint -> approve the draft."""
     config = {"configurable": {"thread_id": thread_id}}
-    with patch("legal_graphrag.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
-         patch("legal_graphrag.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT), \
-         patch("legal_graphrag.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
+    with patch("counsel_graph.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
+         patch("counsel_graph.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT), \
+         patch("counsel_graph.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
         result = app.invoke(
             {"question": question, "collection_name": "test_collection", "document_id": document_id, "asked_by": asked_by},
             config=config,
@@ -93,7 +93,7 @@ def _ask_and_approve(app, thread_id, question, document_id=None, asked_by="revie
 
 
 def test_conversation_history_loaded_for_second_turn(fresh_db):
-    from legal_graphrag.agents import legal_pipeline
+    from counsel_graph.agents import legal_pipeline
 
     document_id = _make_document()
     app = _build_graph()
@@ -108,7 +108,7 @@ def test_conversation_history_loaded_for_second_turn(fresh_db):
         captured["conversation_history"] = result.get("conversation_history")
         return result
 
-    with patch("legal_graphrag.agents.legal_pipeline.start_job_node", side_effect=_spy_start_job):
+    with patch("counsel_graph.agents.legal_pipeline.start_job_node", side_effect=_spy_start_job):
         # rebuild the graph so the patched node is wired in
         app2 = _build_graph()
         _ask_and_approve(app2, "thread-2", "What about renewal?", document_id=document_id)
@@ -126,15 +126,15 @@ def test_switching_documents_does_not_leak_context(fresh_db):
 
     _ask_and_approve(app, "thread-a1", "What is the termination notice period?", document_id=doc_a)
 
-    from legal_graphrag.db.repository import get_chat_history
+    from counsel_graph.db.repository import get_chat_history
     history_b_before = get_chat_history(doc_b)
     assert history_b_before == []
 
     # a fresh turn against doc_b should see NO history at all
     result = None
-    with patch("legal_graphrag.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
-         patch("legal_graphrag.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT) as mocked_verify, \
-         patch("legal_graphrag.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
+    with patch("counsel_graph.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
+         patch("counsel_graph.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT) as mocked_verify, \
+         patch("counsel_graph.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
         config = {"configurable": {"thread_id": "thread-b1"}}
         app.invoke({"question": "What is the liability cap?", "collection_name": "test_collection",
                     "document_id": doc_b, "asked_by": "reviewer1"}, config=config)
@@ -149,8 +149,8 @@ def test_evidence_rejection_is_abstention_not_hallucination(fresh_db):
     app = _build_graph()
     config = {"configurable": {"thread_id": "thread-reject"}}
 
-    with patch("legal_graphrag.agents.legal_pipeline.hybrid_search", return_value=[]), \
-         patch("legal_graphrag.agents.legal_pipeline.verify_evidence", return_value=_INSUFFICIENT_VERDICT):
+    with patch("counsel_graph.agents.legal_pipeline.hybrid_search", return_value=[]), \
+         patch("counsel_graph.agents.legal_pipeline.verify_evidence", return_value=_INSUFFICIENT_VERDICT):
         result = app.invoke(
             {"question": "What is the penalty for late delivery?", "collection_name": "test_collection",
              "document_id": document_id, "asked_by": "reviewer1"},
@@ -165,7 +165,7 @@ def test_evidence_rejection_is_abstention_not_hallucination(fresh_db):
     assert result["status"] == "evidence_rejected"
     assert result["final_answer"] is None
 
-    from legal_graphrag.db.repository import get_chat_history
+    from counsel_graph.db.repository import get_chat_history
     history = get_chat_history(document_id)
     assert len(history) == 1
     assert history[0]["status"] == "evidence_rejected"
@@ -173,9 +173,9 @@ def test_evidence_rejection_is_abstention_not_hallucination(fresh_db):
 
     # a rejected turn must never be fed back in as established conversational memory
     app2 = _build_graph()
-    with patch("legal_graphrag.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
-         patch("legal_graphrag.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT) as mocked_verify, \
-         patch("legal_graphrag.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
+    with patch("counsel_graph.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
+         patch("counsel_graph.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT) as mocked_verify, \
+         patch("counsel_graph.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
         config2 = {"configurable": {"thread_id": "thread-followup"}}
         app2.invoke({"question": "What about the delivery terms?", "collection_name": "test_collection",
                      "document_id": document_id, "asked_by": "reviewer1"}, config=config2)
@@ -188,7 +188,7 @@ def test_citations_persist_in_chat_transcript(fresh_db):
     app = _build_graph()
     _ask_and_approve(app, "thread-cite", "What is the termination notice period?", document_id=document_id)
 
-    from legal_graphrag.db.repository import get_chat_history
+    from counsel_graph.db.repository import get_chat_history
     history = get_chat_history(document_id)
     assert history[0]["citations"] == ["Contract, Clause 5.1"]
     assert history[0]["status"] == "answered"
@@ -199,16 +199,16 @@ def test_clear_chat_stops_feeding_history_but_keeps_transcript(fresh_db):
     app = _build_graph()
     _ask_and_approve(app, "thread-clear1", "What is the termination notice period?", document_id=document_id)
 
-    from legal_graphrag.db.repository import clear_chat_history, get_chat_history
+    from counsel_graph.db.repository import clear_chat_history, get_chat_history
     clear_chat_history(document_id)
 
     assert get_chat_history(document_id) == []
     assert len(get_chat_history(document_id, include_cleared=True)) == 1
 
     app2 = _build_graph()
-    with patch("legal_graphrag.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
-         patch("legal_graphrag.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT) as mocked_verify, \
-         patch("legal_graphrag.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
+    with patch("counsel_graph.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
+         patch("counsel_graph.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT) as mocked_verify, \
+         patch("counsel_graph.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
         config = {"configurable": {"thread_id": "thread-clear2"}}
         app2.invoke({"question": "What about renewal?", "collection_name": "test_collection",
                      "document_id": document_id, "asked_by": "reviewer1"}, config=config)
@@ -225,7 +225,7 @@ def test_no_document_id_skips_memory_without_error(fresh_db):
 
 
 def test_standards_context_included_when_clause_type_detected(fresh_db):
-    from legal_graphrag.db.repository import create_document
+    from counsel_graph.db.repository import create_document
 
     document_id = create_document(filename="test.pdf", status="ready_for_review", document_type="Service")
     app = _build_graph()
@@ -234,10 +234,10 @@ def test_standards_context_included_when_clause_type_detected(fresh_db):
     fake_resolved = {"selected": [{"knowledge_reference_id": "kr-1", "title": "Liability Cap Standard"}],
                       "scope_level": "customer_group_fallback", "source": "kr-1"}
 
-    with patch("legal_graphrag.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
-         patch("legal_graphrag.graphrag.standards.resolve_standards", return_value=fake_resolved), \
-         patch("legal_graphrag.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT) as mocked_verify, \
-         patch("legal_graphrag.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
+    with patch("counsel_graph.agents.legal_pipeline.hybrid_search", return_value=_HYBRID_HIT), \
+         patch("counsel_graph.graphrag.standards.resolve_standards", return_value=fake_resolved), \
+         patch("counsel_graph.agents.legal_pipeline.verify_evidence", return_value=_SUFFICIENT_VERDICT) as mocked_verify, \
+         patch("counsel_graph.agents.legal_pipeline.synthesize_legal_answer", return_value=_ANSWER):
         app.invoke(
             {"question": "What is the liability cap in this agreement?", "collection_name": "test_collection",
              "document_id": document_id, "asked_by": "reviewer1"},

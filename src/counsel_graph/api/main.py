@@ -2,7 +2,7 @@
 FastAPI wrapper around the ingestion and query pipelines: HTTP endpoints
 plus a small browser UI at /ui instead of the CLI's print()/input() flow.
 
-Run with: uvicorn legal_graphrag.api.main:app --reload --port 8000
+Run with: uvicorn counsel_graph.api.main:app --reload --port 8000
 Then open http://127.0.0.1:8000/ui (docs at /docs).
 
 Note: with the default in-memory checkpointer this only works with a single
@@ -120,7 +120,7 @@ async def lifespan(app: FastAPI):
 _IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
 
 app = FastAPI(
-    title="Legal GraphRAG API",
+    title="CounselGraph API",
     version="0.2.0",
     lifespan=lifespan,
     docs_url=None if _IS_PRODUCTION else "/docs",

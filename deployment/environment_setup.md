@@ -81,7 +81,7 @@ docker compose down -v   # drops all named volumes: Postgres, Neo4j, Chroma, Min
 
 Useful for local development without container overhead, or on a machine where
 Docker isn't available. Falls back gracefully: if `DATABASE_URL` is unset, the
-app uses a local SQLite file at `data/legal_graphrag.db` instead of Postgres; if
+app uses a local SQLite file at `data/counsel_graph.db` instead of Postgres; if
 `STORAGE_ENDPOINT`/`STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY`/`STORAGE_BUCKET`
 are unset, uploads fall back to local disk at `data/uploads/`.
 
@@ -91,7 +91,7 @@ are unset, uploads fall back to local disk at `data/uploads/`.
    (a free instance at https://console.neo4j.io works fine for this)
 3. `python scripts/seed_db.py` (creates the SQLite file and seeds org profiles,
    or points at Postgres if `DATABASE_URL` is set)
-4. `uvicorn legal_graphrag.api.main:app --reload --port 8000`
+4. `uvicorn counsel_graph.api.main:app --reload --port 8000`
 5. Open http://127.0.0.1:8000/ui
 
 ### Cloud deployment (Neo4j Aura, managed Postgres, etc.)

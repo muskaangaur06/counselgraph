@@ -2,7 +2,7 @@
 combination logic in graphrag/confidentiality.py. No Gemini/DB needed -- these
 exercise pure functions against section 12.5's minimum test list."""
 
-from legal_graphrag.graphrag.confidentiality import (
+from counsel_graph.graphrag.confidentiality import (
     combine_classification,
     detect_deterministic_signals,
 )

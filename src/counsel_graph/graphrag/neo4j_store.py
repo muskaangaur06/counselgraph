@@ -1,5 +1,5 @@
 """
-Neo4j graph store for the Legal GraphRAG pipeline.
+Neo4j graph store for the CounselGraph pipeline.
 
 Nodes: DocumentJob, Contract, Party, Clause (with its own embedding for
 vector similarity), Judgment, RiskFlag, ReviewerDecision, AuditRecord.

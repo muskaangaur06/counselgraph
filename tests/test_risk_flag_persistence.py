@@ -36,11 +36,11 @@ def fresh_db(monkeypatch):
     os.close(fd)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{path}")
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
     session_module.init_db()
 
-    monkeypatch.setattr("legal_graphrag.graphrag.langgraph_agent.get_store", lambda: _FakeGraphStore())
+    monkeypatch.setattr("counsel_graph.graphrag.langgraph_agent.get_store", lambda: _FakeGraphStore())
 
     yield session_module
 
@@ -49,14 +49,14 @@ def fresh_db(monkeypatch):
 
 
 def _make_document(fresh_db, **kwargs):
-    from legal_graphrag.db.repository import create_document
+    from counsel_graph.db.repository import create_document
     defaults = dict(filename="test.pdf", status="processing")
     defaults.update(kwargs)
     return create_document(**defaults)
 
 
 def _make_clause(fresh_db, document_id, clause_type, text, clause_id=None):
-    from legal_graphrag.db.repository import upsert_clause
+    from counsel_graph.db.repository import upsert_clause
     pg_clause_id, _created = upsert_clause(document_id=document_id, clause_type=clause_type, extracted_text=text)
     return pg_clause_id
 
@@ -66,7 +66,7 @@ def _document_risk_flags(fresh_db, document_id):
     (RiskFlag.document_id set directly) plus clause-level flags (reached via
     their clause's document_id, since clause-level flags don't set
     RiskFlag.document_id themselves -- Clause.document_id is the source of truth)."""
-    from legal_graphrag.db.models import Clause, RiskFlag
+    from counsel_graph.db.models import Clause, RiskFlag
     with fresh_db.get_session() as s:
         document_level = s.query(RiskFlag).filter_by(document_id=document_id).all()
         clause_ids = [c.clause_id for c in s.query(Clause).filter_by(document_id=document_id).all()]
@@ -84,8 +84,8 @@ def test_clause_level_flags_never_set_document_id(fresh_db):
     document reached via Clause.document_id) or document-level (clause_id null,
     document_id set) -- never both, or a clause-level flag would double-count
     when a caller queries by document_id AND joins through its clauses."""
-    from legal_graphrag.graphrag.langgraph_agent import detect_conflicts_node
-    from legal_graphrag.db.models import RiskFlag
+    from counsel_graph.graphrag.langgraph_agent import detect_conflicts_node
+    from counsel_graph.db.models import RiskFlag
 
     document_id = _make_document(fresh_db)
     clause_a_pg = _make_clause(fresh_db, document_id, "governing_law", "governed by India")
@@ -99,7 +99,7 @@ def test_clause_level_flags_never_set_document_id(fresh_db):
         ],
     }
     fake_conflicts = [{"clause_id_a": "a", "clause_id_b": "b", "reason": "conflict"}]
-    with patch("legal_graphrag.graphrag.langgraph_agent.detect_conflicts", return_value=fake_conflicts):
+    with patch("counsel_graph.graphrag.langgraph_agent.detect_conflicts", return_value=fake_conflicts):
         detect_conflicts_node(state)
 
     with fresh_db.get_session() as s:
@@ -110,7 +110,7 @@ def test_clause_level_flags_never_set_document_id(fresh_db):
 
 
 def test_conflicting_clauses_become_risk_flags(fresh_db):
-    from legal_graphrag.graphrag.langgraph_agent import detect_conflicts_node
+    from counsel_graph.graphrag.langgraph_agent import detect_conflicts_node
 
     document_id = _make_document(fresh_db)
     clause_a_pg = _make_clause(fresh_db, document_id, "governing_law", "This Agreement is governed by the laws of India.")
@@ -124,7 +124,7 @@ def test_conflicting_clauses_become_risk_flags(fresh_db):
         ],
     }
     fake_conflicts = [{"clause_id_a": "a", "clause_id_b": "b", "reason": "Two conflicting governing-law jurisdictions."}]
-    with patch("legal_graphrag.graphrag.langgraph_agent.detect_conflicts", return_value=fake_conflicts):
+    with patch("counsel_graph.graphrag.langgraph_agent.detect_conflicts", return_value=fake_conflicts):
         detect_conflicts_node(state)
 
     flags = _document_risk_flags(fresh_db, document_id)
@@ -135,7 +135,7 @@ def test_conflicting_clauses_become_risk_flags(fresh_db):
 
 
 def test_missing_termination_clause_becomes_document_level_risk_flag(fresh_db):
-    from legal_graphrag.graphrag.langgraph_agent import missing_clause_node
+    from counsel_graph.graphrag.langgraph_agent import missing_clause_node
 
     document_id = _make_document(fresh_db)
     state = {
@@ -155,9 +155,9 @@ def test_missing_termination_clause_becomes_document_level_risk_flag(fresh_db):
 def test_missing_data_protection_clause_flagged_for_cross_border_profile(fresh_db):
     """Cross-Border Compliance Unit-style org profile requires data_protection in
     its checklist -- verifies org-specific behavior, not just a hardcoded default."""
-    from legal_graphrag.graphrag.langgraph_agent import missing_clause_node
-    from legal_graphrag.db.models import OrgProfile
-    from legal_graphrag.db.session import get_session
+    from counsel_graph.graphrag.langgraph_agent import missing_clause_node
+    from counsel_graph.db.models import OrgProfile
+    from counsel_graph.db.session import get_session
 
     with get_session() as s:
         profile = OrgProfile(
@@ -187,7 +187,7 @@ def test_duplicate_processing_does_not_create_duplicate_missing_clause_flags(fre
     -- this documents current behavior: each run appends new flags (append-only audit
     style, same as ReviewAction/AuditLog), so idempotency here means "the checklist
     comparison itself doesn't fabricate new missing types," not dedup across runs."""
-    from legal_graphrag.graphrag.langgraph_agent import missing_clause_node
+    from counsel_graph.graphrag.langgraph_agent import missing_clause_node
 
     document_id = _make_document(fresh_db)
     state = {
@@ -202,7 +202,7 @@ def test_duplicate_processing_does_not_create_duplicate_missing_clause_flags(fre
 
 
 def test_ambiguous_liability_flag_persists_with_category(fresh_db):
-    from legal_graphrag.graphrag.langgraph_agent import risk_flag_node
+    from counsel_graph.graphrag.langgraph_agent import risk_flag_node
 
     document_id = _make_document(fresh_db)
     clause_pg_id = _make_clause(fresh_db, document_id, "limitation_of_liability", "Liability terms are unclear and may not apply to all scenarios.")
@@ -223,8 +223,8 @@ def test_ambiguous_liability_flag_persists_with_category(fresh_db):
                     return list(self)
             return _Arr([0.1, 0.2])
 
-    with patch("legal_graphrag.graphrag.langgraph_agent.flag_risks", return_value=fake_risks), \
-         patch("legal_graphrag.graphrag.langgraph_agent.get_embedder", return_value=FakeEmbedder()):
+    with patch("counsel_graph.graphrag.langgraph_agent.flag_risks", return_value=fake_risks), \
+         patch("counsel_graph.graphrag.langgraph_agent.get_embedder", return_value=FakeEmbedder()):
         risk_flag_node(state)
 
     flags = _document_risk_flags(fresh_db, document_id)
@@ -236,9 +236,9 @@ def test_ambiguous_liability_flag_persists_with_category(fresh_db):
 def test_compliance_gap_from_mandatory_standard(fresh_db):
     """A mandatory standard (Phase 5's is_mandatory) whose clause_type is absent
     from the document becomes a compliance_gap risk flag."""
-    from legal_graphrag.graphrag.langgraph_agent import risk_flag_node
-    from legal_graphrag.db.models import KnowledgeReference
-    from legal_graphrag.db.session import get_session
+    from counsel_graph.graphrag.langgraph_agent import risk_flag_node
+    from counsel_graph.db.models import KnowledgeReference
+    from counsel_graph.db.session import get_session
 
     document_id = _make_document(fresh_db)
     with get_session() as s:
@@ -262,16 +262,16 @@ def test_compliance_gap_from_mandatory_standard(fresh_db):
     # clause present (pg_clause_id=None simulates Postgres persistence failing for
     # this clause -- present_clause_types still includes "data_protection" from
     # state["clauses"], so no compliance_gap should fire in this case)
-    with patch("legal_graphrag.graphrag.langgraph_agent.flag_risks", return_value=[]), \
-         patch("legal_graphrag.graphrag.langgraph_agent.get_embedder", return_value=FakeEmbedder()):
+    with patch("counsel_graph.graphrag.langgraph_agent.flag_risks", return_value=[]), \
+         patch("counsel_graph.graphrag.langgraph_agent.get_embedder", return_value=FakeEmbedder()):
         risk_flag_node(state)
     assert _document_risk_flags(fresh_db, document_id) == []
 
     # now simulate the clause type genuinely absent from the document
     state["clauses"] = [{"id": "a", "pg_clause_id": None, "clause_type": "termination",
                           "text": "irrelevant", "embedding": [0.1, 0.2]}]
-    with patch("legal_graphrag.graphrag.langgraph_agent.flag_risks", return_value=[]), \
-         patch("legal_graphrag.graphrag.langgraph_agent.get_embedder", return_value=FakeEmbedder()):
+    with patch("counsel_graph.graphrag.langgraph_agent.flag_risks", return_value=[]), \
+         patch("counsel_graph.graphrag.langgraph_agent.get_embedder", return_value=FakeEmbedder()):
         risk_flag_node(state)
 
     flags = _document_risk_flags(fresh_db, document_id)

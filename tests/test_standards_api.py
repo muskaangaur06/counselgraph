@@ -17,13 +17,13 @@ def app_client(monkeypatch):
     monkeypatch.delenv("NEO4J_URI", raising=False)
     monkeypatch.setenv("REVIEWERS", '[{"username":"admin1","password":"pw","role":"admin"}]')
 
-    from legal_graphrag.db import session as session_module
+    from counsel_graph.db import session as session_module
     session_module.reset_engine_for_tests()
 
-    import legal_graphrag.api.main as main_module
+    import counsel_graph.api.main as main_module
     monkeypatch.setattr(main_module, "preload_models", lambda **kwargs: None)
 
-    from legal_graphrag.api.main import app
+    from counsel_graph.api.main import app
     with TestClient(app) as c:
         yield c
 
@@ -38,9 +38,9 @@ def _login(client, username="admin1", password="pw"):
 
 def test_standards_endpoint_resolves_organization_level(app_client):
     _login(app_client)
-    from legal_graphrag.db.repository import create_document
-    from legal_graphrag.db.models import KnowledgeReference
-    from legal_graphrag.db.session import get_session
+    from counsel_graph.db.repository import create_document
+    from counsel_graph.db.models import KnowledgeReference
+    from counsel_graph.db.session import get_session
 
     document_id = create_document(filename="test.pdf", status="ready_for_review", document_type="service")
 
@@ -69,7 +69,7 @@ def test_standards_endpoint_requires_session(app_client):
 def test_deviation_scoring_works_without_standards_context():
     """Phase 4 behavior preserved: compute_deviation still works when called
     with no standards_context (its default), same as before Phase 5."""
-    from legal_graphrag.graphrag.deviation import compute_deviation
+    from counsel_graph.graphrag.deviation import compute_deviation
     import numpy as np
 
     class FakeEmbedder:

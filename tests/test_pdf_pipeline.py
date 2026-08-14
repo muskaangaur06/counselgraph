@@ -1,4 +1,4 @@
-from legal_graphrag.ingestion.pdf_pipeline import (
+from counsel_graph.ingestion.pdf_pipeline import (
     clean_text,
     detect_section_heading,
     table_to_markdown,
