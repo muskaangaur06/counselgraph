@@ -78,6 +78,9 @@ services:
     volumes:
       - chroma_data:/app/data/chroma_db
       - uploads_data:/app/data/uploads
+    # GEMINI_API_KEY must be set in .env for live LLM calls (extraction, risk
+    # flagging, playbook generation, chat) -- without it the container still
+    # starts and serves the UI, but any endpoint that calls Gemini will fail.
     env_file:
       - .env
     healthcheck:

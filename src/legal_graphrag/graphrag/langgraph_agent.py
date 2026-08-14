@@ -57,6 +57,47 @@ class IngestionState(TypedDict, total=False):
     status: str
 
 
+# Roles that indicate the *other* side of the agreement rather than the Tata
+# entity reviewing it. Deliberately a small, explicit list: role strings come
+# back as free text from the LLM, so anything not matched here falls back to
+# listing the party names instead of guessing which side is the counterparty.
+_COUNTERPARTY_ROLE_HINTS = (
+    "vendor", "supplier", "licensor", "lessor", "contractor", "consultant",
+    "service provider", "provider", "seller", "distributor", "reseller",
+)
+
+
+def _derive_counterparty(parties: list, vendor_name: Optional[str] = None) -> Optional[str]:
+    """Best-effort counterparty name from the extracted parties.
+
+    Preference order: an explicit vendor_name supplied at upload, then a party
+    whose role looks like the supplying side, then -- when no role disambiguates
+    -- every party name joined, which is honest ("these are the parties") rather
+    than silently picking one at random.
+    """
+    if vendor_name and vendor_name.strip():
+        return vendor_name.strip()[:200]
+
+    names = []
+    for p in parties or []:
+        if isinstance(p, dict):
+            name = (p.get("name") or "").strip()
+            role = (p.get("role") or "").strip().lower()
+        else:
+            name, role = str(p).strip(), ""
+        if not name:
+            continue
+        names.append(name)
+        if role and any(hint in role for hint in _COUNTERPARTY_ROLE_HINTS):
+            return name[:200]
+
+    if not names:
+        return None
+    if len(names) == 1:
+        return names[0][:200]
+    return " / ".join(names)[:200]
+
+
 def start_job_node(state: IngestionState) -> dict:
     store = get_store()
     job_id = str(uuid.uuid4())
@@ -85,16 +126,29 @@ def start_job_node(state: IngestionState) -> dict:
     # Decision Brief generator needs key dates/financial terms/parties later).
     if state.get("document_id"):
         try:
-            from ..db.repository import update_document
-            update_document(
-                state["document_id"],
-                parties=document_context.get("parties") or [],
-                subject_matter=document_context.get("subject_matter"),
-                effective_date=document_context.get("effective_date"),
-                end_date=document_context.get("end_date"),
-                monetary_value=document_context.get("monetary_value"),
-                governing_law_country=document_context.get("governing_law_country"),
-            )
+            from ..db.repository import update_document, get_document
+            metadata_updates = {
+                "parties": document_context.get("parties") or [],
+                "subject_matter": document_context.get("subject_matter"),
+                "effective_date": document_context.get("effective_date"),
+                "end_date": document_context.get("end_date"),
+                "monetary_value": document_context.get("monetary_value"),
+                "governing_law_country": document_context.get("governing_law_country"),
+            }
+            # Derive counterparty from the extracted parties when the uploader
+            # didn't type one. The pipeline already knows who the parties are, so
+            # leaving the header's Counterparty badge blank just because the form
+            # field was empty hides information the system genuinely extracted.
+            # Never overwrite a human-entered value.
+            existing = get_document(state["document_id"]) or {}
+            if not (existing.get("counterparty") or "").strip():
+                derived = _derive_counterparty(
+                    document_context.get("parties") or [],
+                    state.get("vendor_name"),
+                )
+                if derived:
+                    metadata_updates["counterparty"] = derived
+            update_document(state["document_id"], **metadata_updates)
         except Exception as e:  # noqa: BLE001
             print(f"[start_job] WARNING: persisting contract metadata failed: {type(e).__name__}: {e}")
 

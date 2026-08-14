@@ -229,6 +229,44 @@ def create_playbook_entry(risk_flag_id: str, current_language: str, fallback_pos
         return entry.playbook_entry_id
 
 
+def get_playbook_entries_for_document(document_id: str) -> list[dict]:
+    """One joined query for every playbook entry belonging to a document, covering
+    both clause-level risk flags (via Clause.document_id) and document-level risk
+    flags (via RiskFlag.document_id directly) -- the same union
+    api/main.py's get_document_detail already does across two separate queries,
+    but here as a single join instead of the N+1 per-flag lookup _flag_payload
+    does today."""
+    with get_session() as session:
+        clause_level = session.execute(
+            select(PlaybookEntry, RiskFlag, Clause.clause_type)
+            .join(RiskFlag, PlaybookEntry.risk_flag_id == RiskFlag.risk_flag_id)
+            .join(Clause, RiskFlag.clause_id == Clause.clause_id)
+            .where(Clause.document_id == document_id)
+        ).all()
+        document_level = session.execute(
+            select(PlaybookEntry, RiskFlag, RiskFlag.category)
+            .join(RiskFlag, PlaybookEntry.risk_flag_id == RiskFlag.risk_flag_id)
+            .where(RiskFlag.document_id == document_id, RiskFlag.clause_id.is_(None))
+        ).all()
+
+        entries = []
+        for playbook, flag, clause_type in list(clause_level) + list(document_level):
+            entries.append({
+                "risk_flag_id": flag.risk_flag_id,
+                "clause_type": clause_type,
+                "category": flag.category,
+                "severity": flag.severity,
+                "confidence": flag.confidence,
+                "rationale": flag.rationale,
+                "assigned_role": flag.assigned_role,
+                "current_language": playbook.current_language,
+                "fallback_positions": playbook.fallback_positions,
+                "fallback_source": playbook.fallback_source,
+                "suggested_redline": playbook.suggested_redline,
+            })
+        return entries
+
+
 def record_review_action(reviewer_username: str, role: str, action: str, rationale: Optional[str] = None,
                           document_id: Optional[str] = None, clause_id: Optional[str] = None,
                           risk_flag_id: Optional[str] = None) -> str:

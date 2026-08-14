@@ -22,7 +22,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
@@ -194,6 +194,23 @@ async def root():
 @app.get("/ui", include_in_schema=False)
 async def ui() -> HTMLResponse:
     return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+
+
+# Brand assets served explicitly rather than via a StaticFiles mount on the whole
+# directory: only these two files are public, so an accidental future addition to
+# static/ isn't exposed by default. Cached for a day -- they change rarely.
+_BRAND_ASSET_CACHE = {"Cache-Control": "public, max-age=86400"}
+
+
+@app.get("/static/logo.png", include_in_schema=False)
+async def brand_logo() -> FileResponse:
+    return FileResponse(STATIC_DIR / "logo.png", media_type="image/png", headers=_BRAND_ASSET_CACHE)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/static/favicon.png", include_in_schema=False)
+async def brand_favicon() -> FileResponse:
+    return FileResponse(STATIC_DIR / "favicon.png", media_type="image/png", headers=_BRAND_ASSET_CACHE)
 
 
 # auth: fixed reviewer roster (admin/reviewer/senior_counsel), no user database, session cookie only
@@ -625,6 +642,42 @@ async def get_document_detail(document_id: str, reviewer: dict = Depends(get_cur
             "monetary_value": doc.monetary_value, "governing_law_country": doc.governing_law_country,
             "latest_decision_brief": latest_decision_brief,
         })
+
+
+# Aggregated negotiation playbook: rolls up every flagged clause's playbook entry
+# for a document into one priority-ordered strategy view (Approval & Escalation ->
+# Negotiation Playbook sub-tab), instead of only the per-clause inline blocks in
+# Review Workspace. Deterministic aggregation only, no new LLM call.
+_SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
+
+
+@app.get("/api/documents/{document_id}/negotiation-playbook", dependencies=[Depends(require_session)])
+async def get_negotiation_playbook(document_id: str, reviewer: dict = Depends(get_current_reviewer)) -> dict:
+    from ..db.session import get_session
+    from ..db.models import Document
+    from ..db.repository import get_playbook_entries_for_document
+
+    with get_session() as session:
+        doc = session.get(Document, document_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail=f"No document found for document_id={document_id}")
+        _enforce_confidentiality_access(doc.confidentiality_level, reviewer["role"])
+
+    entries = get_playbook_entries_for_document(document_id)
+    entries.sort(key=lambda e: (_SEVERITY_RANK.get(e["severity"], 3), e["confidence"] if e["confidence"] is not None else 1.0))
+
+    return _jsonable({
+        "document_id": document_id,
+        "generated_from": "risk_flags_with_playbook",
+        "entries": entries,
+        "priority_order": [e["risk_flag_id"] for e in entries],
+        "summary": {
+            "total_entries": len(entries),
+            "high_severity": sum(1 for e in entries if e["severity"] == "high"),
+            "org_profile_sourced": sum(1 for e in entries if e["fallback_source"] == "org_profile"),
+            "llm_sourced": sum(1 for e in entries if e["fallback_source"] == "llm_generated"),
+        },
+    })
 
 
 class ReviewActionRequest(BaseModel):

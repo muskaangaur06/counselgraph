@@ -4,8 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>CounselGraph</title>
+<link rel="icon" type="image/png" href="/static/favicon.png" />
 <style>
   :root {
+    color-scheme: dark;
     --bg-deep: #0e0708;
     --bg-deep-2: #170a0c;
     --surface-1: rgba(255,240,235,0.055);
@@ -54,6 +56,7 @@
   }
 
   html[data-theme="light"] {
+    color-scheme: light;
     --bg-deep: #fbf1da;
     --bg-deep-2: #f7e8c9;
     --surface-1: rgba(122,32,20,0.055);
@@ -126,10 +129,11 @@
   }
   .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .brand-mark {
-    width: 30px; height: 30px; border-radius: 9px; background: var(--accent-grad);
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 45%, transparent);
-    flex-shrink: 0;
+    width: 40px; height: 40px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--accent) 55%, transparent));
   }
+  .brand-mark img { width: 40px; height: 40px; display: block; border-radius: 10px; }
   .brand-name { font-size: 18.5px; font-weight: 700; letter-spacing: -0.01em; color: var(--heading-ink); }
   .theme-toggle {
     font-family: var(--sans); font-size: 14.1px; font-weight: 600; padding: 6px 12px; border-radius: var(--radius-sm);
@@ -137,7 +141,6 @@
     flex-shrink: 0;
   }
   .theme-toggle:hover { color: var(--ink); background: var(--surface-2); }
-  .login-card .theme-toggle { position: absolute; top: 18px; right: 18px; }
 
   .tab-row { display: flex; gap: 2px; padding: 6px 18px; overflow-x: auto; }
   .tab {
@@ -206,6 +209,11 @@
   }
 
   .view { display: none; padding: 26px 28px 64px; }
+  /* The Upload form's field count makes the default bottom padding push it
+     past one viewport on common laptop heights; trimmed only here since
+     other tabs (dashboards, review) have less content and don't need it. */
+  #view-upload.view { padding-bottom: 24px; }
+  #view-upload label.field-label { margin: 11px 0 5px; }
   .view.active { display: block; }
   .view-inner { max-width: 1180px; margin: 0 auto; }
 
@@ -242,14 +250,21 @@
   input[type=text]:focus, input[type=password]:focus, textarea:focus, select:focus {
     outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
   }
-  input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
-    -webkit-box-shadow: 0 0 0 1000px var(--field-bg) inset;
-    -webkit-text-fill-color: var(--ink);
-    caret-color: var(--ink);
+  select option { background: var(--popover-bg); color: var(--ink); }
+  input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px var(--field-bg) inset !important;
+    -webkit-text-fill-color: var(--ink) !important;
+    caret-color: var(--ink) !important;
+    transition: background-color 0s 600000s, color 0s 600000s;
   }
   textarea { min-height: 76px; resize: vertical; line-height: 1.5; font-family: var(--sans); }
   .row { display: flex; gap: 14px; }
   .row > div { flex: 1; }
+  /* The Upload page's intro line was the one thing tall enough to force a
+     scrollbar for a single line's worth of content -- clamping it to one
+     line (with ellipsis as a safety net on narrow viewports) fits the page
+     without touching the rest of the layout's spacing. */
+  .doc-sub-oneline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
   button {
     font-family: var(--sans);
@@ -285,6 +300,14 @@
     font-family: var(--sans); font-size: 13.2px; text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--ink-faint); margin-top: 6px;
   }
+  /* Label:value rows for deviation/confidence/playbook sub-blocks -- replaces
+     flat <br/>-separated sentences with proper visual separation between
+     each fact, so evidence reads as data rather than as prose to parse. */
+  .data-rows { font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+  .data-row { display: flex; gap: 6px; padding: 3px 0; }
+  .data-row .k { color: var(--ink-faint); flex-shrink: 0; }
+  .data-row .v { color: var(--ink); }
+  .data-block + .data-block { margin-top: 10px; }
 
   .stamp {
     display: inline-flex; align-items: center; font-family: var(--sans); font-size: 12.8px; font-weight: 700;
@@ -321,6 +344,14 @@
   hr.rule { border: none; border-top: 1px solid var(--paper-line); margin: 14px 0; }
 
   .final-answer { white-space: pre-wrap; line-height: 1.65; font-size: 16.8px; font-family: var(--sans); color: var(--ink); }
+  .final-answer h2.md-heading, .final-answer h3.md-heading, .final-answer h4.md-heading {
+    font-family: var(--sans); color: var(--accent-bright); margin: 18px 0 6px; font-size: 15.5px;
+    text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700;
+  }
+  .final-answer h2.md-heading:first-child, .final-answer h3.md-heading:first-child, .final-answer h4.md-heading:first-child { margin-top: 0; }
+  .final-answer p.md-p { margin: 0 0 10px; white-space: normal; }
+  .final-answer ul.md-list { margin: 0 0 12px; padding-left: 22px; }
+  .final-answer ul.md-list li { margin-bottom: 5px; line-height: 1.5; }
 
   pre.raw {
     background: var(--raw-bg); color: var(--raw-ink); padding: 14px; border-radius: var(--radius-sm); overflow-x: auto;
@@ -403,11 +434,14 @@
       radial-gradient(1100px 560px at 8% -8%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 60%),
       radial-gradient(900px 520px at 96% 0%, color-mix(in srgb, #c9932e 18%, transparent), transparent 55%);
   }
+  /* Two-panel login: brand/value-prop on the left, credentials on the right.
+     Collapses to a single stacked column under 860px. */
   .login-card {
-    width: 100%; max-width: 400px; background: var(--card-bg); border: 1px solid var(--glass-border);
-    border-radius: 20px; padding: 38px 34px; position: relative; box-shadow: var(--shadow-2);
+    width: 100%; max-width: 940px; background: var(--card-bg); border: 1px solid var(--glass-border);
+    border-radius: 22px; position: relative; box-shadow: var(--shadow-2);
     -webkit-backdrop-filter: blur(24px) saturate(150%); backdrop-filter: blur(24px) saturate(150%);
     isolation: isolate; overflow: hidden;
+    display: grid; grid-template-columns: 1.05fr 1fr;
   }
   .login-card::before {
     content: ""; position: absolute; inset: -60%; z-index: -2; opacity: 0.55;
@@ -415,38 +449,101 @@
     filter: blur(50px); animation: loginGlow 10s linear infinite;
   }
   .login-card::after {
-    content: ""; position: absolute; inset: 1px; z-index: -1; border-radius: 19px; background: var(--popover-bg);
+    content: ""; position: absolute; inset: 1px; z-index: -1; border-radius: 21px; background: var(--popover-bg);
   }
   @keyframes loginGlow { to { transform: rotate(360deg); } }
-  .login-mark {
-    width: 46px; height: 46px; border-radius: 14px; background: var(--accent-grad); margin-bottom: 18px;
-    box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 50%, transparent);
-    display: flex; align-items: center; justify-content: center; font-size: 20px;
+
+  .login-brand {
+    padding: 46px 40px; display: flex; flex-direction: column;
+    border-right: 1px solid var(--glass-border);
+    background:
+      radial-gradient(620px 340px at 12% 4%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 62%),
+      radial-gradient(520px 300px at 92% 96%, color-mix(in srgb, #c9932e 16%, transparent), transparent 60%);
   }
-  .login-card h1 { font-size: 27.5px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.02em; color: var(--heading-ink); }
-  .login-card .sub { font-family: var(--sans); font-size: 15.2px; color: var(--ink-soft); margin-bottom: 22px; }
-  .login-card label.field-label { margin: 12px 0 6px; }
+  .login-mark {
+    width: 132px; height: 132px; margin-bottom: 26px;
+    display: flex; align-items: center; justify-content: center;
+    filter: drop-shadow(0 10px 34px color-mix(in srgb, var(--accent) 62%, transparent));
+  }
+  .login-mark img { width: 132px; height: 132px; display: block; border-radius: 26px; }
+  .login-eyebrow {
+    font-family: var(--sans); font-size: 11.5px; font-weight: 700; letter-spacing: .16em;
+    text-transform: uppercase; color: #e2b869; margin-bottom: 10px;
+  }
+  .login-card h1 { font-size: 34px; font-weight: 800; margin: 0 0 10px; letter-spacing: -0.02em; color: var(--heading-ink); line-height: 1.1; }
+  .login-card .sub { font-family: var(--sans); font-size: 15.4px; line-height: 1.55; color: var(--ink-soft); margin: 0; }
+  .login-points { list-style: none; padding: 0; margin: 24px 0 0; }
+  .login-points li {
+    font-family: var(--sans); font-size: 14.4px; color: var(--ink-soft);
+    padding-left: 26px; position: relative; margin-bottom: 11px; line-height: 1.45;
+  }
+  .login-points li::before {
+    content: ""; position: absolute; left: 6px; top: 6px;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .login-govnote {
+    margin-top: auto; padding-top: 26px; font-family: var(--sans); font-size: 12.4px;
+    color: var(--ink-faint); line-height: 1.5;
+  }
+
+  .login-form { padding: 46px 40px; display: flex; flex-direction: column; justify-content: center; }
+  .login-form-title { font-family: var(--sans); font-size: 19px; font-weight: 700; color: var(--heading-ink); margin-bottom: 4px; }
+  .login-form-hint { font-family: var(--sans); font-size: 13.6px; color: var(--ink-faint); margin-bottom: 24px; }
+  .login-card label.field-label { margin: 14px 0 6px; }
   .login-card label.field-label.first { margin-top: 0; }
-  .login-card .btn-row { margin-top: 20px; }
+  .login-card .btn-row { margin-top: 22px; }
   .login-error { display: none; }
+  .login-theme-row { margin-top: 20px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .login-roles { font-family: var(--sans); font-size: 12.2px; color: var(--ink-faint); }
+
+  @media (max-width: 860px) {
+    .login-card { grid-template-columns: 1fr; max-width: 440px; }
+    .login-brand { border-right: none; border-bottom: 1px solid var(--glass-border); padding: 34px 30px; }
+    .login-form { padding: 32px 30px; }
+    .login-mark, .login-mark img { width: 96px; height: 96px; }
+    .login-card h1 { font-size: 28px; }
+    .login-points, .login-govnote { display: none; }
+  }
 </style>
 </head>
 <body>
 
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
-    <div class="login-mark">&#9670;</div>
-    <h1>CounselGraph</h1>
-    <div class="sub">AI-assisted legal document review. Sign in to continue.</div>
-    <label class="field-label first">Username</label>
-    <input type="text" id="loginUsername" autocomplete="username" />
-    <label class="field-label">Password</label>
-    <input type="password" id="loginPassword" autocomplete="current-password" />
-    <div class="notice error login-error" id="loginError"></div>
-    <div class="btn-row">
-      <button id="loginSubmit" style="width:100%;">Sign In</button>
+    <div class="login-brand">
+      <div class="login-mark"><img src="/static/logo.png" alt="CounselGraph" /></div>
+      <div class="login-eyebrow">Legal Document Intelligence</div>
+      <h1>CounselGraph</h1>
+      <div class="sub">First-pass contract review with clause-level evidence, so expert time goes to judgment and negotiation instead of reading.</div>
+      <ul class="login-points">
+        <li>Clause extraction with page-level citations and confidence</li>
+        <li>Risk flags scored against your organization's approved standards</li>
+        <li>Negotiation playbooks with fallback positions and redlines</li>
+        <li>Human approval and a full audit trail at every step</li>
+      </ul>
+      <div class="login-govnote">
+        Outputs are decision support pending legal review, never final legal advice.
+        Access is restricted to the provisioned reviewer roster.
+      </div>
     </div>
-    <button class="secondary theme-toggle" id="themeToggleLogin" type="button">Light</button>
+
+    <form class="login-form" id="loginForm" autocomplete="on">
+      <div class="login-form-title">Sign in</div>
+      <div class="login-form-hint">Use your provisioned reviewer credentials.</div>
+      <label class="field-label first" for="loginUsername">Username</label>
+      <input type="text" id="loginUsername" name="username" autocomplete="username" autofocus />
+      <label class="field-label" for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" name="password" autocomplete="current-password" />
+      <div class="notice error login-error" id="loginError"></div>
+      <div class="btn-row">
+        <button id="loginSubmit" type="submit" style="width:100%;">Sign In</button>
+      </div>
+      <div class="login-theme-row">
+        <span class="login-roles">Roles: reviewer &middot; senior counsel &middot; admin</span>
+        <button class="secondary" id="themeToggleLogin" type="button">Light</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -454,7 +551,7 @@
   <div class="topbar">
     <div class="topbar-row1">
       <div class="brand">
-        <div class="brand-mark"></div>
+        <div class="brand-mark"><img src="/static/logo.png" alt="CounselGraph" /></div>
         <span class="brand-name">CounselGraph</span>
       </div>
       <div class="topbar-right">
@@ -500,12 +597,10 @@
   <!-- 1. UPLOAD WORKSPACE -->
   <div class="view active" id="view-upload">
    <div class="view-inner">
-    <div class="doc-title">Upload Workspace</div>
-    <div class="doc-sub">Submit a contract for first-pass review. Provide the org profile and document context up front, since these drive which clauses are expected, which risk thresholds apply, and how the document is routed for review.</div>
+    <div class="doc-title">Document to Review</div>
+    <div class="doc-sub doc-sub-oneline">Submit a contract for first-pass review. The org profile and document context drive which clauses are expected, which risk thresholds apply, and how it's routed.</div>
 
     <div class="exhibit">
-      <span class="exhibit-label">Submission</span>
-      <h3>Document to Review</h3>
       <label class="field-label first">File (PDF or DOCX)</label>
       <input type="file" id="ingestFile" accept="application/pdf,.docx" />
       <div class="row">
@@ -677,7 +772,7 @@
   </div>
 </div>
 
-<button class="chat-launcher" id="chatLauncher" type="button" aria-label="Ask CounselGraph about this document">&#128172;</button>
+<button class="chat-launcher" id="chatLauncher" type="button" aria-label="Ask CounselGraph about this document" style="display:none;">&#128172;</button>
 <div class="chat-panel" id="chatPanel">
   <div class="chat-panel-header">
     <div>
@@ -807,13 +902,18 @@ document.addEventListener("click", (e) => {
   }
 });
 
-document.getElementById("loginSubmit").addEventListener("click", async () => {
+// Bound on the form's submit rather than the button's click so Enter in either
+// field works natively (no synthetic .click()) -- preventDefault stops the
+// browser's own navigation, which would otherwise reload and drop the session.
+document.getElementById("loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
   const username = document.getElementById("loginUsername").value.trim();
   const password = document.getElementById("loginPassword").value;
   const errorEl = document.getElementById("loginError");
   errorEl.style.display = "none";
   const btn = document.getElementById("loginSubmit");
   btn.disabled = true;
+  btn.textContent = "Signing in…";
   try {
     await apiFetch("/api/auth/login", {
       method: "POST",
@@ -827,11 +927,8 @@ document.getElementById("loginSubmit").addEventListener("click", async () => {
     errorEl.style.display = "block";
   } finally {
     btn.disabled = false;
+    btn.textContent = "Sign In";
   }
-});
-
-document.getElementById("loginPassword").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") document.getElementById("loginSubmit").click();
 });
 
 document.getElementById("logoutButton").addEventListener("click", async () => {
@@ -851,6 +948,37 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
 function escapeHtml(s) {
   return (s ?? "").toString().replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Renders the limited markdown subset the LLM prompts actually produce
+// (### headings, **bold**, - bullet lists) as real HTML instead of dumping
+// literal "###"/"**" characters into a pre-wrap div. Escapes first so no
+// LLM output can inject markup; only the whitelisted patterns below turn
+// back into tags.
+function renderLightMarkdown(text) {
+  const lines = escapeHtml(text ?? "").split("\n");
+  let html = "";
+  let inList = false;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const heading = line.match(/^(#{2,4})\s+(.*)$/);
+    const bullet = line.match(/^[-*]\s+(.*)$/);
+    if (heading) {
+      if (inList) { html += "</ul>"; inList = false; }
+      const level = Math.min(heading[1].length + 2, 6);
+      html += `<h${level} class="md-heading">${heading[2].replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")}</h${level}>`;
+    } else if (bullet) {
+      if (!inList) { html += "<ul class=\"md-list\">"; inList = true; }
+      html += `<li>${bullet[1].replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")}</li>`;
+    } else if (line === "") {
+      if (inList) { html += "</ul>"; inList = false; }
+    } else {
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<p class="md-p">${line.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")}</p>`;
+    }
+  }
+  if (inList) html += "</ul>";
+  return html;
 }
 
 function confidenceValue(value) {
@@ -1034,7 +1162,7 @@ function renderExecutiveSummary(ctx) {
     <div class="exhibit">
       <span class="exhibit-label">Summary</span>
       <h3>Executive Summary</h3>
-      <div class="final-answer">${escapeHtml(ctx.executive_summary)}</div>
+      <div class="final-answer">${renderLightMarkdown(ctx.executive_summary)}</div>
     </div>
   `;
 }
@@ -1091,28 +1219,22 @@ function renderIngestPayload(payload) {
             ${clauseBlock(f)}
             ${dev ? `
               <div class="clause-meta" style="margin-top:10px;">Org-Profile Deviation</div>
-              <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
-                Deviation score: <b>${dev.deviation_score.toFixed(2)}</b> (delta ${dev.delta.toFixed(2)}, confidence ${dev.confidence.toFixed(2)})<br/>
-                Approved position: ${escapeHtml(dev.approved_position)}<br/>
-                This contract's position: ${escapeHtml(dev.contract_position)}
+              <div class="data-rows">
+                <div class="data-row"><span class="k">Deviation score:</span> <span class="v"><b>${dev.deviation_score.toFixed(2)}</b> (delta ${dev.delta.toFixed(2)}, confidence ${dev.confidence.toFixed(2)})</span></div>
+                <div class="data-row"><span class="k">Approved position:</span> <span class="v">${escapeHtml(dev.approved_position)}</span></div>
+                <div class="data-row"><span class="k">This contract's position:</span> <span class="v">${escapeHtml(dev.contract_position)}</span></div>
               </div>
             ` : ""}
             ${cb ? `
               <div class="clause-meta" style="margin-top:10px;">Evidence-Weighted Confidence</div>
-              <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
-                Composite: <b>${cb.composite !== null ? cb.composite.toFixed(2) : "n/a"}</b>
-                &middot; OCR quality: ${cb.components.ocr_quality !== null ? cb.components.ocr_quality.toFixed(2) : "n/a"}
-                &middot; Retrieval relevance: ${cb.components.retrieval_relevance !== null ? cb.components.retrieval_relevance.toFixed(2) : "n/a"}
-                &middot; Model self-reported: ${cb.components.llm_confidence !== null ? cb.components.llm_confidence.toFixed(2) : "n/a"}
+              <div class="data-rows">
+                <div class="data-row"><span class="k">Composite:</span> <span class="v"><b>${cb.composite !== null ? cb.composite.toFixed(2) : "n/a"}</b></span></div>
+                <div class="data-row"><span class="k">OCR quality:</span> <span class="v">${cb.components.ocr_quality !== null ? cb.components.ocr_quality.toFixed(2) : "n/a"}</span></div>
+                <div class="data-row"><span class="k">Retrieval relevance:</span> <span class="v">${cb.components.retrieval_relevance !== null ? cb.components.retrieval_relevance.toFixed(2) : "n/a"}</span></div>
+                <div class="data-row"><span class="k">Model self-reported:</span> <span class="v">${cb.components.llm_confidence !== null ? cb.components.llm_confidence.toFixed(2) : "n/a"}</span></div>
               </div>
             ` : ""}
-            ${pb ? `
-              <div class="clause-meta" style="margin-top:10px;">Negotiation Playbook (source: ${escapeHtml(pb.fallback_source)})</div>
-              <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
-                ${(pb.fallback_positions || []).length ? `Fallback positions (ideal to acceptable):<ol>${pb.fallback_positions.map(p => `<li>${escapeHtml(p)}</li>`).join("")}</ol>` : ""}
-                ${pb.suggested_redline ? `Suggested redline: ${escapeHtml(pb.suggested_redline)}` : ""}
-              </div>
-            ` : ""}
+            ${renderPlaybookBlock(pb)}
           </div>
           <div class="annotation-side">
             <span class="stamp high">High Risk</span>
@@ -1175,6 +1297,13 @@ function renderIngestPayload(payload) {
   return html;
 }
 
+// The chat launcher only makes sense once a document has cleared human
+// review -- before that (upload/processing) there's nothing vetted yet to
+// ask questions against, matching the ingestion pipeline's own
+// human-in-the-loop pause/resume gate rather than opening chat on raw,
+// not-yet-approved extraction.
+const CHAT_HIDDEN_VIEWS = new Set(["upload", "status"]);
+
 function switchToView(viewName) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
@@ -1182,6 +1311,15 @@ function switchToView(viewName) {
   if (tab) tab.classList.add("active");
   document.getElementById("view-" + viewName).classList.add("active");
   renderDocHeader();
+
+  const chatLauncher = document.getElementById("chatLauncher");
+  const chatPanel = document.getElementById("chatPanel");
+  if (CHAT_HIDDEN_VIEWS.has(viewName)) {
+    chatLauncher.style.display = "none";
+    chatPanel.classList.remove("open");
+  } else {
+    chatLauncher.style.display = "";
+  }
 }
 
 async function handleIngestResponse(resp) {
@@ -1396,9 +1534,12 @@ function renderPlaybookBlock(pb) {
   if (!pb) return "";
   return `
     <div class="clause-meta" style="margin-top:10px;">Negotiation Playbook (source: ${escapeHtml(pb.fallback_source)})</div>
-    <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
-      ${(pb.fallback_positions || []).length ? `Fallback positions (ideal to acceptable):<ol>${pb.fallback_positions.map(p => `<li>${escapeHtml(p)}</li>`).join("")}</ol>` : ""}
-      ${pb.suggested_redline ? `Suggested redline: ${escapeHtml(pb.suggested_redline)}` : ""}
+    <div class="data-rows">
+      ${(pb.fallback_positions || []).length ? `
+        <div class="data-row"><span class="k">Fallback positions (ideal&rarr;acceptable):</span></div>
+        <ol style="margin:2px 0 10px 22px;">${pb.fallback_positions.map(p => `<li style="margin-bottom:4px;">${escapeHtml(p)}</li>`).join("")}</ol>
+      ` : ""}
+      ${pb.suggested_redline ? `<div class="data-row"><span class="k">Suggested redline:</span> <span class="v">${escapeHtml(pb.suggested_redline)}</span></div>` : ""}
     </div>
   `;
 }
@@ -1609,7 +1750,7 @@ function renderSummaryBlock(doc) {
         &middot; <span class="stamp ${latest.approval_status === 'approved' ? 'low' : 'neutral'}">${escapeHtml(approvalLabel)}</span>
         ${latest.restored_from_version ? ` &middot; restored from v${escapeHtml(String(latest.restored_from_version))}` : ""}
       </div>
-      <div class="final-answer" id="summaryDisplay" style="margin-top:8px;">${escapeHtml(latest.summary_text)}</div>
+      <div class="final-answer" id="summaryDisplay" style="margin-top:8px;">${renderLightMarkdown(latest.summary_text)}</div>
       <textarea id="summaryEditArea" style="display:none; width:100%; min-height:180px; margin-top:8px;">${escapeHtml(latest.summary_text)}</textarea>
       <div class="btn-row" style="margin-top:10px;">
         <button type="button" class="secondary" id="summaryEditToggle">Edit</button>
@@ -1785,19 +1926,19 @@ function renderDocumentDetail(doc) {
               <div class="ruled-text">${escapeHtml(c.extracted_text)}</div>
               ${f.deviation_detail ? `
                 <div class="clause-meta" style="margin-top:10px;">Org-Profile Deviation</div>
-                <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
-                  Deviation score: <b>${f.deviation_score !== null ? f.deviation_score.toFixed(2) : "n/a"}</b><br/>
-                  Approved position: ${escapeHtml(f.deviation_detail.approved_position)}<br/>
-                  This contract's position: ${escapeHtml(f.deviation_detail.contract_position)}
+                <div class="data-rows">
+                  <div class="data-row"><span class="k">Deviation score:</span> <span class="v"><b>${f.deviation_score !== null ? f.deviation_score.toFixed(2) : "n/a"}</b></span></div>
+                  <div class="data-row"><span class="k">Approved position:</span> <span class="v">${escapeHtml(f.deviation_detail.approved_position)}</span></div>
+                  <div class="data-row"><span class="k">This contract's position:</span> <span class="v">${escapeHtml(f.deviation_detail.contract_position)}</span></div>
                 </div>
               ` : ""}
               ${f.confidence_breakdown ? `
                 <div class="clause-meta" style="margin-top:10px;">Evidence-Weighted Confidence</div>
-                <div style="font-family:var(--sans); font-size:15px; line-height:1.5;">
-                  Composite: <b>${f.confidence_breakdown.composite !== null ? f.confidence_breakdown.composite.toFixed(2) : "n/a"}</b>
-                  &middot; OCR quality: ${f.confidence_breakdown.components.ocr_quality !== null ? f.confidence_breakdown.components.ocr_quality.toFixed(2) : "n/a"}
-                  &middot; Retrieval relevance: ${f.confidence_breakdown.components.retrieval_relevance !== null ? f.confidence_breakdown.components.retrieval_relevance.toFixed(2) : "n/a"}
-                  &middot; Model self-reported: ${f.confidence_breakdown.components.llm_confidence !== null ? f.confidence_breakdown.components.llm_confidence.toFixed(2) : "n/a"}
+                <div class="data-rows">
+                  <div class="data-row"><span class="k">Composite:</span> <span class="v"><b>${f.confidence_breakdown.composite !== null ? f.confidence_breakdown.composite.toFixed(2) : "n/a"}</b></span></div>
+                  <div class="data-row"><span class="k">OCR quality:</span> <span class="v">${f.confidence_breakdown.components.ocr_quality !== null ? f.confidence_breakdown.components.ocr_quality.toFixed(2) : "n/a"}</span></div>
+                  <div class="data-row"><span class="k">Retrieval relevance:</span> <span class="v">${f.confidence_breakdown.components.retrieval_relevance !== null ? f.confidence_breakdown.components.retrieval_relevance.toFixed(2) : "n/a"}</span></div>
+                  <div class="data-row"><span class="k">Model self-reported:</span> <span class="v">${f.confidence_breakdown.components.llm_confidence !== null ? f.confidence_breakdown.components.llm_confidence.toFixed(2) : "n/a"}</span></div>
                 </div>
               ` : ""}
               ${renderPlaybookBlock(f.playbook)}
@@ -1865,7 +2006,59 @@ function renderDocumentDetail(doc) {
     html += `</div>`;
   }
 
+  html += `<div class="exhibit" id="negotiationPlaybookBlock"><span class="exhibit-label">Strategy</span><h3>Negotiation Playbook</h3><div class="empty-note">Loading&hellip;</div></div>`;
+
   html += renderDecisionBriefBlock(doc);
+
+  return html;
+}
+
+async function loadNegotiationPlaybook(documentId) {
+  const el = document.getElementById("negotiationPlaybookBlock");
+  if (!el) return;
+  try {
+    const payload = await apiFetch(`/api/documents/${encodeURIComponent(documentId)}/negotiation-playbook`);
+    el.innerHTML = renderNegotiationPlaybook(payload);
+  } catch (e) {
+    el.innerHTML = `<span class="exhibit-label">Strategy</span><h3>Negotiation Playbook</h3><div class="notice error">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderNegotiationPlaybook(payload) {
+  const entries = payload.entries || [];
+  const s = payload.summary || {};
+  let html = `<span class="exhibit-label">Strategy</span><h3>Negotiation Playbook</h3>`;
+  html += `<div class="doc-sub" style="margin-top:-4px; margin-bottom:12px;">Priority-ordered negotiation strategy across every flagged clause in this document. Decision support, not final legal advice.</div>`;
+
+  if (!entries.length) {
+    return html + `<div class="empty-note">No flagged clauses with a generated playbook entry yet.</div>`;
+  }
+
+  html += `<div class="docket-strip">
+    <div class="docket-item"><div class="num">${s.total_entries ?? 0}</div><div class="cap">Playbook Entries</div></div>
+    <div class="docket-item"><div class="num ${s.high_severity ? 'flag' : ''}">${s.high_severity ?? 0}</div><div class="cap">High Severity</div></div>
+    <div class="docket-item"><div class="num">${s.org_profile_sourced ?? 0}</div><div class="cap">Org-Profile Sourced</div></div>
+    <div class="docket-item"><div class="num">${s.llm_sourced ?? 0}</div><div class="cap">AI-Generated</div></div>
+  </div>`;
+
+  entries.forEach((e, i) => {
+    const severityClass = e.severity === "high" ? "high" : (e.severity === "medium" ? "medium" : "low");
+    html += `
+      <div class="annotation-row" style="margin-bottom:20px; margin-top:14px;">
+        <div class="annotation-main">
+          <div class="clause-meta">${escapeHtml(e.clause_type || e.category || "clause")}</div>
+          <div class="ruled-text">${escapeHtml(e.current_language || "")}</div>
+          ${renderPlaybookBlock(e)}
+        </div>
+        <div class="annotation-side">
+          <span class="stamp ${severityClass}">Priority ${i + 1}</span>
+          ${e.assigned_role === "senior_counsel" ? `<span class="stamp medium">Senior Counsel</span>` : ""}
+          <div class="label">Why flagged</div>
+          <div style="font-family:var(--sans); font-size:16px; line-height:1.5;">${escapeHtml(e.rationale || "")}</div>
+        </div>
+      </div>
+    `;
+  });
 
   return html;
 }
@@ -2082,7 +2275,10 @@ async function loadDocumentDetailInto(documentId, out) {
       business_unit: doc.business_unit,
     },
   });
-  if (out) out.innerHTML = renderDocumentDetail(doc);
+  if (out) {
+    out.innerHTML = renderDocumentDetail(doc);
+    loadNegotiationPlaybook(doc.document_id);
+  }
   return doc;
 }
 
@@ -2127,6 +2323,18 @@ async function loadOrgProfiles() {
 // lookup form with nothing else on screen until a search is run.
 async function loadPortfolioOverview() {
   const out = document.getElementById("portfolioOverview");
+  // Pre-select the currently loaded document's own org profile/counterparty
+  // so the comparison scope defaults to "conflicts involving this contract's
+  // org" instead of forcing a manual re-pick every time -- the field itself
+  // still stays required, since comparing across unrelated orgs would just
+  // be noise (see find_conflicting_clause_pairs's own scoping contract).
+  const meta = currentDocument.docMeta;
+  if (meta) {
+    const orgSelect = document.getElementById("portfolioOrgProfile");
+    const counterpartyInput = document.getElementById("portfolioCounterparty");
+    if (orgSelect && meta.org_profile_id && !orgSelect.value) orgSelect.value = meta.org_profile_id;
+    if (counterpartyInput && meta.counterparty && !counterpartyInput.value) counterpartyInput.value = meta.counterparty;
+  }
   try {
     const stats = await apiFetch("/api/dashboard/stats");
     out.innerHTML = `
@@ -2686,6 +2894,103 @@ function _summaryCard(label, domain, key, lowerIsBetter) {
   `;
 }
 
+// Structured, legible rendering per known domain shape instead of a raw JSON
+// dump -- any keys the structured view doesn't recognize still show up in the
+// collapsible raw-JSON fallback, so nothing is silently hidden.
+// 0..1 metric as a filled meter bar. Colored by band so a weak score reads as
+// weak at a glance instead of being just another number in a column.
+function _meterBar(value) {
+  if (typeof value !== "number" || !isFinite(value)) return "";
+  const pct = Math.max(0, Math.min(1, value)) * 100;
+  const color = value >= 0.8 ? "var(--good)" : (value >= 0.5 ? "var(--warn)" : "var(--danger)");
+  return `<div style="height:6px; border-radius:3px; background:var(--rule); overflow:hidden; margin-top:7px;">
+    <div style="width:${pct.toFixed(1)}%; height:100%; background:${color}; border-radius:3px;"></div>
+  </div>`;
+}
+
+function _metricTile(label, value) {
+  const display = (value === null || value === undefined) ? "N/A" : (typeof value === "number" ? value.toFixed(3) : escapeHtml(String(value)));
+  return `<div class="docket-item">
+    <div class="num">${display}</div>
+    <div class="cap">${escapeHtml(label)}</div>
+    ${_meterBar(value)}
+  </div>`;
+}
+
+function _metricsTable(rows, columns) {
+  if (!rows.length) return `<div class="empty-note">No cases.</div>`;
+  // Score columns (0..1 rates) get an inline bar behind the number; count-style
+  // columns like support stay plain integers so they aren't drawn as 200% bars.
+  const isScore = (key) => !["label", "clause_type", "support"].includes(key);
+  return `
+    <table style="width:100%; margin-top:10px; font-family:var(--sans); font-size:14px; border-collapse:collapse;">
+      <thead><tr>${columns.map(c => `<th style="text-align:left; padding:6px 10px; font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-faint); font-weight:600;">${escapeHtml(c.label)}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${rows.map(row => `
+          <tr style="border-top:1px solid var(--rule);">
+            ${columns.map(c => {
+              const v = row[c.key];
+              if (typeof v === "number" && isScore(c.key)) {
+                const pct = Math.max(0, Math.min(1, v)) * 100;
+                const color = v >= 0.8 ? "var(--good)" : (v >= 0.5 ? "var(--warn)" : "var(--danger)");
+                return `<td style="padding:7px 10px; min-width:110px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="min-width:38px; font-variant-numeric:tabular-nums;">${v.toFixed(3)}</span>
+                    <span style="flex:1; height:5px; border-radius:3px; background:var(--rule); overflow:hidden;">
+                      <span style="display:block; width:${pct.toFixed(1)}%; height:100%; background:${color};"></span>
+                    </span>
+                  </div></td>`;
+              }
+              const plain = (v === null || v === undefined) ? "n/a" : (typeof v === "number" ? String(v) : String(v));
+              return `<td style="padding:7px 10px;">${escapeHtml(plain)}</td>`;
+            }).join("")}
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function _renderDomainMetrics(domain, m) {
+  let structured = "";
+  const knownKeys = new Set();
+
+  if (domain === "ragas") {
+    const keys = ["faithfulness", "answer_relevancy", "context_precision", "context_recall"];
+    keys.forEach(k => knownKeys.add(k));
+    structured = `<div class="docket-strip" style="margin-top:8px;">${keys.filter(k => k in m).map(k => _metricTile(k.replace(/_/g, " "), m[k])).join("")}</div>`;
+  } else if (domain === "clause_risk") {
+    const keys = ["avg_clause_recall", "avg_risk_precision", "avg_missing_clause_accuracy"];
+    keys.forEach(k => knownKeys.add(k));
+    structured = `<div class="docket-strip" style="margin-top:8px;">${keys.filter(k => k in m).map(k => _metricTile(k.replace(/^avg_/, "avg ").replace(/_/g, " "), m[k])).join("")}</div>`;
+  } else if (domain === "confidentiality" && m.per_level && typeof m.per_level === "object") {
+    knownKeys.add("per_level"); knownKeys.add("macro_f1"); knownKeys.add("accuracy"); knownKeys.add("dataset_version");
+    structured = `<div class="docket-strip" style="margin-top:8px;">${_metricTile("Macro F1", m.macro_f1)}${m.accuracy !== undefined ? _metricTile("Accuracy", m.accuracy) : ""}</div>`;
+    structured += _metricsTable(
+      Object.entries(m.per_level).map(([label, v]) => ({ label, ...v })),
+      [
+        { key: "label", label: "Class" }, { key: "precision", label: "Precision" },
+        { key: "recall", label: "Recall" }, { key: "f1", label: "F1" }, { key: "support", label: "Support" },
+      ]
+    );
+  } else if (domain === "retrieval" || domain === "citation" || domain === "ocr") {
+    const numericKeys = Object.keys(m).filter(k => typeof m[k] === "number");
+    numericKeys.forEach(k => knownKeys.add(k));
+    structured = `<div class="docket-strip" style="margin-top:8px;">${numericKeys.map(k => _metricTile(k.replace(/_/g, " "), m[k])).join("")}</div>`;
+  }
+
+  const remaining = Object.fromEntries(Object.entries(m).filter(([k]) => !knownKeys.has(k)));
+  const hasRemaining = Object.keys(remaining).length > 0;
+  const rawBlock = (structured && !hasRemaining) ? "" : `
+    <details style="margin-top:8px;">
+      <summary class="clause-meta" style="cursor:pointer;">${structured ? "Additional raw metrics" : "Raw metrics"}</summary>
+      <pre class="raw" style="margin-top:8px;">${escapeHtml(JSON.stringify(structured ? remaining : m, null, 2))}</pre>
+    </details>
+  `;
+
+  return (structured || `<div class="empty-note">No structured view for this domain yet.</div>`) + rawBlock;
+}
+
 function renderEvaluationRun(run) {
   window.__evalRunSelected = run;
 
@@ -2718,43 +3023,68 @@ function renderEvaluationRun(run) {
   </div>`;
 
   const domainOrder = ["clause_risk", "confidentiality", "ocr", "retrieval", "ragas", "citation"];
+  const notRun = [];
   for (const domain of domainOrder) {
     const m = run.metrics?.[domain];
     if (!m) continue;
+    // A domain with zero cases and no numeric metric contributes nothing but
+    // noise -- collect those into one "not run" line instead of rendering an
+    // empty card each (matches 20.1: say "not evaluated", don't fake a result).
+    const hasNumbers = Object.values(m).some(v => typeof v === "number") ||
+      Object.values(m).some(v => v && typeof v === "object" && Object.keys(v).length);
+    if (!hasNumbers && !(run.case_counts?.[domain])) { notRun.push(domain); continue; }
     html += `
       <div class="exhibit" style="margin-top:14px;">
         <span class="exhibit-label">${escapeHtml(domain.replace(/_/g, " "))}</span>
         <h3>Domain Metrics</h3>
         <div class="clause-meta">Cases: ${run.case_counts?.[domain] ?? "n/a"}${run.dataset_versions?.[domain] ? ` &middot; dataset v${escapeHtml(run.dataset_versions[domain])}` : ""}</div>
-        <pre class="raw" style="margin-top:8px;">${escapeHtml(JSON.stringify(m, null, 2))}</pre>
+        ${_renderDomainMetrics(domain, m)}
       </div>
     `;
+  }
+  if (notRun.length) {
+    html += `<div class="clause-meta" style="margin-top:12px;">Not evaluated in this run: ${notRun.map(d => escapeHtml(d.replace(/_/g, " "))).join(", ")}</div>`;
   }
 
   const caseResults = run.case_results || [];
   if (caseResults.length) {
+    const failed = caseResults.filter(c => c.passed === false);
+    const passed = caseResults.filter(c => c.passed !== false);
+    // Failures first and expanded; passes collapsed behind a summary line. A wall
+    // of 30 green PASS rows buries the 3 rows a reviewer actually needs to act on.
+    const scoreText = (c) => Object.entries(c.scores || {})
+      .map(([k, v]) => `${k.replace(/_/g, " ")} ${typeof v === "number" ? v.toFixed(2) : (v === null ? "n/a" : v)}`)
+      .join(" · ");
+    const row = (c) => `
+      <tr style="border-top:1px solid var(--rule);">
+        <td style="padding:7px 10px; color:var(--ink-faint); font-size:12px; text-transform:uppercase; letter-spacing:.04em;">${escapeHtml(c.domain)}</td>
+        <td style="padding:7px 10px;">${escapeHtml(c.case_label)}</td>
+        <td style="padding:7px 10px;">${c.passed === null ? '<span class="clause-meta">n/a</span>' : (c.passed ? _statusStamp("pass") : _statusStamp("fail"))}</td>
+        <td style="padding:7px 10px; color:var(--ink-soft);">${escapeHtml(scoreText(c))}</td>
+      </tr>`;
+    const head = `<thead><tr>
+        ${["Domain", "Case", "Result", "Scores"].map(h => `<th style="text-align:left; padding:6px 10px; font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-faint); font-weight:600;">${h}</th>`).join("")}
+      </tr></thead>`;
+
     html += `
       <div class="exhibit" style="margin-top:14px;">
         <span class="exhibit-label">Error Explorer</span>
         <h3>Per-Case Results</h3>
-        <table style="width:100%; margin-top:6px; font-family:var(--sans); font-size:14px;">
-          <thead><tr>
-            <th style="text-align:left; padding:4px 8px;">Domain</th>
-            <th style="text-align:left; padding:4px 8px;">Case</th>
-            <th style="text-align:left; padding:4px 8px;">Passed</th>
-            <th style="text-align:left; padding:4px 8px;">Scores</th>
-          </tr></thead>
-          <tbody>
-            ${caseResults.map(c => `
-              <tr style="border-top:1px solid var(--rule);">
-                <td style="padding:4px 8px;">${escapeHtml(c.domain)}</td>
-                <td style="padding:4px 8px;">${escapeHtml(c.case_label)}</td>
-                <td style="padding:4px 8px;">${c.passed === null ? '<span class="clause-meta">n/a</span>' : (c.passed ? _statusStamp("pass") : _statusStamp("fail"))}</td>
-                <td style="padding:4px 8px; font-size:12.5px;">${escapeHtml(JSON.stringify(c.scores || {}))}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
+        <div class="docket-strip" style="margin-top:8px;">
+          <div class="docket-item"><div class="num">${caseResults.length}</div><div class="cap">Total Cases</div></div>
+          <div class="docket-item"><div class="num ${failed.length ? 'flag' : ''}">${failed.length}</div><div class="cap">Failed</div></div>
+          <div class="docket-item"><div class="num">${passed.length}</div><div class="cap">Passed / N/A</div></div>
+        </div>
+        ${failed.length ? `
+          <div class="clause-meta" style="margin-top:14px;">Failures: these are what to look at</div>
+          <table style="width:100%; font-family:var(--sans); font-size:14px; border-collapse:collapse;">${head}<tbody>${failed.map(row).join("")}</tbody></table>
+        ` : `<div class="empty-note" style="margin-top:12px;">No failing cases in this run.</div>`}
+        ${passed.length ? `
+          <details style="margin-top:14px;">
+            <summary class="clause-meta" style="cursor:pointer;">Show ${passed.length} passing / not-applicable case${passed.length === 1 ? "" : "s"}</summary>
+            <table style="width:100%; font-family:var(--sans); font-size:14px; border-collapse:collapse;">${head}<tbody>${passed.map(row).join("")}</tbody></table>
+          </details>
+        ` : ""}
       </div>
     `;
   }

@@ -46,6 +46,18 @@ docs/           architecture, API reference, security notes, demo script
 3. Copy `.env.example` to `.env` and fill in a Gemini API key, your Neo4j URI/user/password, and change `ADMIN_USERNAME`/`ADMIN_PASSWORD` from the placeholder values (and set a real `SESSION_SECRET`, generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"`).
 4. Neo4j must be running and reachable for the graph features to work. A free instance works fine (see comments in `.env.example`).
 
+## Deployment (Docker Compose)
+
+The fastest reliable path to a running instance -- brings up Postgres, Neo4j, MinIO, and the API together with health checks and persistent volumes:
+
+```
+cp .env.example .env   # fill in GEMINI_API_KEY and change the placeholder admin/session values
+docker compose up -d --build
+docker compose exec api python scripts/seed_db.py   # one-time, after first bring-up or a volume reset
+```
+
+Then open `http://localhost:8000/ui`. See [`deployment/environment_setup.md`](deployment/environment_setup.md) for the full breakdown (build details, service URLs, the native-Python and cloud-deployment alternatives).
+
 ## Running it
 
 ```
@@ -79,6 +91,7 @@ print(result["final_answer"])
 - [`docs/api_documentation.md`](docs/api_documentation.md): every endpoint, request/response shapes, and error cases.
 - [`docs/security_notes.md`](docs/security_notes.md): auth, secrets, prompt injection defense, and what's out of scope.
 - [`docs/demo_script.md`](docs/demo_script.md): a walkthrough covering a vendor agreement review, a missing-clause gap, and the escalation flow.
+- [`deployment/environment_setup.md`](deployment/environment_setup.md): Docker Compose deployment, native setup, and cloud-deployment notes.
 
 ## Tests
 

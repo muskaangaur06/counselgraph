@@ -22,6 +22,19 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.13.0 \
     && pip install --no-cache-dir -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
+# Strip artifacts the running app never reads. Done in the builder stage so the
+# runtime COPY brings across only what is left:
+#   torch/test, torch/include - C++ headers and test binaries, needed to compile
+#     torch extensions, not to run inference
+#   */tests, */test - test suites vendored inside installed packages
+#   __pycache__ - regenerated on demand at import time
+RUN cd /opt/venv/lib/python3.10/site-packages \
+    && rm -rf torch/test torch/include \
+    && find . -maxdepth 2 -type d -name test -prune -exec rm -rf {} + \
+    && find . -maxdepth 2 -type d -name tests -prune -exec rm -rf {} + \
+    && find . -type d -name __pycache__ -prune -exec rm -rf {} + \
+    && find . -type f -name "*.pyi" -delete
+
 
 FROM python:3.10-slim AS runtime
 
@@ -35,7 +48,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /opt/venv /opt/venv
+# appuser is created before the venv arrives so the COPY can set ownership
+# directly with --chown. Creating it afterwards and running
+# `chown -R appuser:appuser /opt/venv` rewrote every file in the venv, which
+# Docker stores as a second full copy: the 2GB venv was held twice and the
+# image carried over 4GB for 2GB of packages.
+RUN useradd --create-home --shell /bin/bash appuser
+
+COPY --from=builder --chown=appuser:appuser /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
@@ -44,12 +64,20 @@ COPY pyproject.toml ./
 COPY src ./src
 COPY data ./data
 COPY scripts ./scripts
+# tests/eval is imported at runtime by POST /api/eval/refresh (main.py adds it
+# to sys.path and does `from run_eval import main`) -- without it the
+# Operations Dashboard's "Run Fresh Eval" button 500s with ModuleNotFoundError
+# inside the container even though the same endpoint works fine locally where
+# tests/ exists on disk. Only tests/eval, not the whole tests/ tree, to avoid
+# pulling in unrelated pytest suites that need dev-only fixtures.
+COPY tests/eval ./tests/eval
 
 RUN pip install --no-cache-dir --no-deps --no-build-isolation -e .
 
-RUN useradd --create-home --shell /bin/bash appuser \
-    && mkdir -p /app/data/chroma_db /app/data/uploads \
-    && chown -R appuser:appuser /app /opt/venv
+# appuser already exists (created above, before the venv copy). Only /app needs
+# chowning here, and it is a few MB rather than the 2GB venv.
+RUN mkdir -p /app/data/chroma_db /app/data/uploads \
+    && chown -R appuser:appuser /app
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
