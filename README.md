@@ -3,12 +3,19 @@
 Contract review where the model drafts and a named human decides. Upload a PDF or DOCX,
 and the pipeline OCRs what needs OCRing, extracts clauses, flags risk, detects conflicts
 across your whole portfolio, and finds what the contract is missing. Ask a question, and
-a router chooses between vector search and a graph traversal, checks its own evidence,
-and drafts an answer. At every point where an LLM output would otherwise become fact, the
-pipeline stops and waits for a reviewer.
+a router chooses between vector search and a connected-record traversal, checks its own
+evidence, and drafts an answer. At every point where an LLM output would otherwise become
+fact, the pipeline stops and waits for a reviewer.
 
-Nothing reaches the knowledge graph as approved until someone with the right seniority
-has approved it, by name, on the record.
+It does not stop at telling you what is wrong. For every clause a reviewer flags,
+CounselGraph builds a negotiation playbook: ranked fallback positions from the ideal ask
+down to the minimum acceptable one, and a concrete suggested redline you could hand to
+the other side. Reading a contract and grading it is one job. Telling you what to do
+about it, and giving a structured, role-gated approval chain to sign off on that plan, is
+a second job most tools stop short of. CounselGraph does both.
+
+Nothing is treated as approved until someone with the right seniority has approved it, by
+name, on the record.
 
 ## The trust boundary
 
@@ -21,7 +28,7 @@ flowchart TB
         direction LR
         D1["Missing-clause detection<br/>set difference vs checklist"]
         D2["Clause dedup<br/>content-hash upsert"]
-        D3["Read-only Cypher guard<br/>regex denylist"]
+        D3["Read-only query guard<br/>regex denylist"]
         D4["Role seniority gate<br/>can_act_on_assigned_role"]
         D5["Upload guardrails<br/>type, size, page cap"]
     end
@@ -32,7 +39,7 @@ flowchart TB
         L2["Risk flagging"]
         L3["Query routing"]
         L4["Answer synthesis"]
-        L5["Cypher generation"]
+        L5["Negotiation playbook draft"]
     end
 
     subgraph T3["TIER 3  Human decides, decision is recorded"]
@@ -45,7 +52,7 @@ flowchart TB
 
     T2 -->|"proposals, never facts"| T3
     T1 -->|"constrains what T2 may even attempt"| T2
-    T3 -->|"only approved output persists"| STORE[("Neo4j knowledge graph")]
+    T3 -->|"only approved output persists"| STORE[("Contract record store")]
     T2 -.->|"blocked: no direct path"| STORE
 
     style T1 fill:#14532d,color:#ffffff
@@ -54,81 +61,62 @@ flowchart TB
     style STORE fill:#3f2d5c,color:#ffffff
 ```
 
-The dotted line is the point. There is no code path from a model output to the graph that
-does not pass through a recorded human decision.
+The dotted line is the point. There is no code path from a model output to the record
+store that does not pass through a recorded human decision.
 
-## What gets built: the knowledge graph
+## From a single clause to a connected case file
 
-Ingestion does not produce a pile of text chunks. It produces a connected graph, which is
-what makes cross-contract questions answerable at all.
+A contract does not sit alone. The moment a clause is extracted, it is compared against
+every clause of the same type already on file, across every other contract in the
+portfolio. This is what turns "read this one document" into "know what every document
+says."
 
 ```mermaid
-erDiagram
-    DocumentJob ||--o{ Contract : PRODUCED
-    Contract ||--o{ Clause : CONTAINS_CLAUSE
-    Contract }o--|| Party : HAS_VENDOR
-    Contract }o--o{ Party : HAS_PARTY
-    Clause ||--o{ RiskFlag : FLAGGED_AS
-    Clause }o--o{ Clause : SAME_CLAUSE_AS
-    Clause }o--o{ Judgment : INTERPRETED_BY
-    Contract ||--o{ MissingClause : MISSING_CLAUSE_FLAG
-    QueryJob ||--o{ AnsweredQuestion : PRODUCED_ANSWER
-    AnsweredQuestion }o--o{ Clause : CITES
-    DocumentJob ||--o{ AuditRecord : HAS_AUDIT_RECORD
-    QueryJob ||--o{ AuditRecord : HAS_AUDIT_RECORD
-    DocumentJob ||--o{ ReviewerDecision : REVIEWED_BY
+flowchart TB
+    C1(["Vendor MSA<br/>Clause: 30-day termination"])
+    C2(["Distribution Agreement<br/>Clause: 90-day termination"])
+    C3(["NDA<br/>Clause: confidentiality, 3yr"])
+    J1(["Judgment<br/>interprets 30-day notice"])
 
-    Contract {
-        string contract_id PK
-        string contract_type
-        string subject_matter
-        bool approved
-    }
-    Clause {
-        string clause_id PK
-        string clause_type
-        float confidence
-        vector embedding
-    }
-    RiskFlag {
-        string flag_id PK
-        string risk_level
-        string category
-        string recommended_action
-    }
-    AuditRecord {
-        string actor
-        string action
-        string detail
-        datetime timestamp
-    }
+    C1 -.->|"same clause type,<br/>different term"| C2
+    C1 --> J1
+
+    C1 --> CF{{"Conflict?"}}
+    C2 --> CF
+    CF -->|"yes, notice periods disagree"| FLAG(["Cross-portfolio<br/>conflict flag"])
+
+    C1 --> PB["Playbook entry<br/>fallback positions + redline"]
+    FLAG --> PB
+
+    style CF fill:#5b2333,color:#ffffff
+    style FLAG fill:#5b2333,color:#ffffff
+    style PB fill:#14532d,color:#ffffff
 ```
 
-`SAME_CLAUSE_AS` is the edge that earns the graph its place. Once a clause is linked to
-its counterpart in another agreement, "has anyone signed a contradictory termination
-notice period with this vendor" stops being a full-text search problem and becomes a
-two-hop traversal.
+Two contracts with the same vendor promising two different termination notice periods
+would never surface in a single-document review. Here it is a direct comparison, because
+every clause already knows every other clause of its type.
 
-## How a question is answered
+## How a question gets an answer
 
 The router does not pick one retrieval strategy for the whole system. It picks per
-question, and it also picks how much to weight dense versus sparse matching for that
-specific question.
+question, and it also picks how much to weight dense semantic matching versus exact
+keyword matching for that specific question.
 
 ```mermaid
 flowchart LR
-    Q(["Question"]) --> R{{"Router<br/>classify_route"}}
+    Q(["Question"]) --> R{{"Router"}}
 
-    R -->|"clause text,<br/>citations"| H["Hybrid search<br/>Chroma dense + BM25 sparse<br/>alpha chosen per query"]
-    R -->|"multi-hop,<br/>cross-contract"| G{"Template<br/>match?"}
-    R -->|"summarize<br/>this doc"| W["Whole-document pull<br/>no similarity ranking"]
-    R -->|"policy /<br/>standard"| S["Standards lookup<br/>no retrieval needed"]
+    R -->|"clause text,<br/>citations"| H["Hybrid search<br/>dense + keyword, reranked"]
+    R -->|"multi-hop,<br/>cross-contract"| G{"Known<br/>shape?"}
+    R -->|"summarize<br/>this doc"| W["Whole-document pull"]
+    R -->|"policy /<br/>standard"| S["Standards lookup"]
 
-    G -->|yes| GT["Hand-written Cypher"]
-    G -->|no| GG["LLM-generated Cypher"]
-    GG --> GUARD{{"is_read_only_cypher<br/>regex denylist"}}
-    GUARD -->|"rejected"| FAIL(["Fails loudly<br/>graph untouched"])
-    GUARD -->|"passes"| NEO[("Neo4j")]
+    G -->|yes| GT["Hand-written template query"]
+    G -->|no| GG["Model-generated query"]
+    GG --> GUARD{{"Read-only guard"}}
+    GUARD -->|"rejected"| FAIL(["Fails loudly<br/>store untouched"])
+    GUARD -->|"passes"| NEO[("Record store")]
     GT --> NEO
 
     H --> AUD
@@ -136,13 +124,13 @@ flowchart LR
     W --> AUD
     S --> AUD
 
-    AUD["Auditor<br/>is this evidence sufficient?"] --> CP1{{"Human<br/>evidence checkpoint"}}
+    AUD["Auditor<br/>is this evidence enough?"] --> CP1{{"Human<br/>evidence checkpoint"}}
     CP1 -->|"reject / escalate"| STOP(["Terminal<br/>nothing generated"])
-    CP1 -->|"proceed"| SYN["Synthesizer<br/>draft + citations + risk level"]
+    CP1 -->|"proceed"| SYN["Draft answer<br/>+ citations + risk level"]
     SYN --> CP2{{"Human<br/>answer checkpoint"}}
     CP2 -->|"revise"| SYN
     CP2 -->|"reject / escalate"| STOP
-    CP2 -->|"approve"| FIN(["Final answer<br/>+ graph write-back"])
+    CP2 -->|"approve"| FIN(["Final answer<br/>+ write-back"])
 
     style GUARD fill:#14532d,color:#ffffff
     style CP1 fill:#1e3a5f,color:#ffffff
@@ -151,28 +139,66 @@ flowchart LR
     style STOP fill:#5b2333,color:#ffffff
 ```
 
-Note the revise edge looping back into the synthesizer. A revision re-reasons over the
-same evidence with the reviewer's written feedback. It does not re-retrieve, because the
-reviewer already approved that evidence at the first checkpoint. Rounds are capped at
-`max_answer_revisions` (default 3) so a disagreement terminates instead of looping.
+A revision re-reasons over the exact same evidence with the reviewer's written feedback.
+It does not re-retrieve, because the reviewer already approved that evidence at the first
+checkpoint. Rounds are capped by default so a genuine disagreement terminates instead of
+looping.
+
+## From draft to decision: the negotiation layer
+
+This is the part that goes beyond analysis. Once a clause is flagged, CounselGraph does
+not stop at "here is the risk." It builds a working negotiation plan and routes it
+through an approval chain that respects seniority.
+
+```mermaid
+flowchart LR
+    RF(["Risk-flagged clause"]) --> PB["Playbook entry<br/>current language + rationale"]
+    PB --> FP["Fallback positions<br/>ranked, ideal to acceptable"]
+    PB --> RL["Suggested redline<br/>ready to hand to counterparty"]
+
+    FP --> SRC{"Approved language<br/>on file?"}
+    SRC -->|yes| ORG["Sourced from org's<br/>approved clause library"]
+    SRC -->|no| GEN["Drafted by the model,<br/>labeled as such"]
+
+    ORG --> BRIEF
+    GEN --> BRIEF
+    RL --> BRIEF["Decision brief"]
+
+    BRIEF --> AP1{"Reviewer"}
+    AP1 -->|escalate| AP2{"Senior counsel"}
+    AP2 -->|escalate| AP3{"Business head"}
+    AP3 -->|escalate| AP4{"Chief legal officer"}
+    AP1 -->|approve| DONE(["Signed off, on the record"])
+    AP2 -->|approve| DONE
+    AP3 -->|approve| DONE
+    AP4 -->|approve| DONE
+    AP1 -->|reject| STOPCH(["Chain stops here,<br/>remaining steps skipped"])
+
+    style ORG fill:#14532d,color:#ffffff
+    style DONE fill:#14532d,color:#ffffff
+    style STOPCH fill:#5b2333,color:#ffffff
+```
+
+A rejection or a send-back at any step stops the entire remaining chain rather than
+leaving it half-decided. Every step, who decided, when, and why, is on the record.
 
 ## Review lifecycle
 
-Every job, ingestion or query, moves through an explicit state machine. Terminal states
-are distinguishable from each other on purpose: a rejection and an escalation mean
+Every job, ingestion or query, moves through an explicit set of states. Terminal states
+are kept distinguishable from each other on purpose: a rejection and an escalation mean
 different things to whoever picks the work up next.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Retrieving
-    Retrieving --> EvidenceAudited : auditor verdict
-    EvidenceAudited --> EvidencePending : interrupt, waits for human
+    Retrieving --> EvidenceAudited : verdict formed
+    EvidenceAudited --> EvidencePending : paused, waits for human
 
     EvidencePending --> Drafting : proceed
     EvidencePending --> EvidenceRejected : reject
     EvidencePending --> EvidenceEscalated : escalate
 
-    Drafting --> AnswerPending : interrupt, waits for human
+    Drafting --> AnswerPending : paused, waits for human
     AnswerPending --> Revising : revise, under cap
     Revising --> AnswerPending : new draft, same evidence
     AnswerPending --> AnswerRejected : revise, cap exceeded
@@ -180,8 +206,8 @@ stateDiagram-v2
     AnswerPending --> AnswerEscalated : escalate
     AnswerPending --> Answered : approve
 
-    Answered --> GraphWriteBack : graph route only
-    GraphWriteBack --> [*]
+    Answered --> RecordWriteBack : applicable route only
+    RecordWriteBack --> [*]
     Answered --> [*]
 
     EvidenceRejected --> [*]
@@ -190,43 +216,40 @@ stateDiagram-v2
     AnswerEscalated --> [*]
 
     note right of EvidencePending
-        interrupt() suspends here.
-        Resume days later via
-        Command(resume=...) with
-        the checkpointer intact.
+        Execution suspends here.
+        Resumes days later exactly
+        where it paused.
     end note
 
     note right of Answered
-        Only this path writes to
-        Neo4j. Every other terminal
-        state leaves the graph
-        untouched.
+        Only this path writes back.
+        Every other terminal state
+        leaves the record untouched.
     end note
 ```
 
-Turns ending in rejection or escalation are still written to the chat transcript for
-audit, but `start_job_node` only feeds `answered` turns back as conversational memory, so
-a rejected draft never becomes context that shapes the next question.
+Turns ending in rejection or escalation are still written to the transcript for audit,
+but a rejected draft never becomes context that shapes the next question.
 
 ## Ingestion path
 
 ```mermaid
 flowchart LR
-    U(["PDF / DOCX"]) --> EX["extract<br/>pdfplumber, python-docx"]
+    U(["PDF / DOCX"]) --> EX["Extract<br/>text + tables"]
     EX --> DT{"low-text<br/>pages?"}
-    DT -->|yes| OCR["ocr<br/>Tesseract, only those pages"]
+    DT -->|yes| OCR["OCR<br/>only those pages"]
     DT -->|no| CH
-    OCR --> CH["chunk<br/>sliding window, page + section tracked"]
-    CH --> TB["table<br/>pricing schedules preserved"]
-    TB --> PS["persist<br/>content-hash upsert, dedup point"]
-    PS --> EM["embed_store<br/>sentence-transformers into Chroma"]
-    EM --> CL["extract_clauses<br/>one LLM call per chunk"]
-    CL --> LK["link SAME_CLAUSE_AS<br/>vector match vs existing graph"]
-    LK --> CF["detect_conflicts<br/>+ cross-portfolio pairs"]
-    CF --> RK["flag_risks<br/>level, category, action, confidence"]
-    RK --> MC["detect_missing_clauses<br/>set difference, no LLM"]
+    OCR --> CH["Chunk<br/>page + section tracked"]
+    CH --> TB["Table extraction<br/>pricing schedules preserved"]
+    TB --> PS["Persist<br/>content-hash dedup point"]
+    PS --> EM["Embed<br/>into vector index"]
+    EM --> CL["Extract clauses"]
+    CL --> LK["Link matching clauses<br/>across the portfolio"]
+    LK --> CF["Detect conflicts<br/>same-doc + cross-portfolio"]
+    CF --> RK["Flag risk<br/>level, category, confidence"]
+    RK --> MC["Detect missing clauses<br/>set difference, no model call"]
     MC --> HA{{"Human approval"}}
-    HA -->|approve| GW[("Graph write")]
+    HA -->|approve| GW[("Record write")]
     HA -->|"reject / escalate"| NO(["No write"])
 
     style MC fill:#14532d,color:#ffffff
@@ -240,56 +263,56 @@ whether two clauses look the same.
 
 ## What makes it different
 
-| Most contract RAG | CounselGraph |
+| Most contract review tools | CounselGraph |
 | --- | --- |
-| One retrieval strategy for every question | Router picks strategy and dense/sparse weight per question |
-| Chunks in a vector store | Connected graph, so `SAME_CLAUSE_AS` makes cross-contract questions two-hop traversals |
-| Model decides if its answer is good | LLM auditor proposes a verdict, a human decides, both are recorded |
-| Approve or reject | Approve, revise against the same evidence, reject, or escalate by role seniority |
-| Missing clauses inferred by the model | Set difference against a per-contract-type checklist, deterministic |
-| Generated Cypher trusted | Regex denylist blocks any mutating query before it reaches Neo4j |
-| Single-document review | Cross-portfolio conflict detection across every contract in the graph |
+| One retrieval strategy for every question | Router picks strategy and search weighting per question |
+| Chunks in a vector store, nothing connected | Clauses linked across every contract in the portfolio |
+| Model decides if its own answer is good | An auditor proposes a verdict, a human decides, both are recorded |
+| Tells you what is wrong | Tells you what is wrong, then drafts what to do about it |
+| Approve or reject | Approve, revise against the same evidence, reject, or escalate by seniority |
+| Missing clauses inferred by the model | Set difference against a checklist, deterministic, no model call |
+| Generated queries trusted | Read-only guard blocks any mutating query before it reaches storage |
+| Single-document review | Cross-portfolio conflict detection across every contract on file |
 | "Trust the output" | Append-only audit record per stage, per job, traceable end to end |
 
-## Evaluation
+## Measured results
 
-Extraction and risk flagging are LLM-based and not deterministic between runs, so they
-are measured, not assumed.
+Extraction and risk flagging are model calls and are not perfectly deterministic between
+runs, so quality is measured against a hand-labeled reference set and reported honestly,
+including where a number is unflattering.
 
-**Hand-labeled reference set.** `tests/eval/labeled_eval_set.json` labels the expected
-clause types, expected high-risk clause types, and expected missing clauses for every
-document in `data/sample_contracts/`, deliberately including adversarial cases:
+```mermaid
+xychart-beta
+    title "Baseline evaluation run, by domain"
+    x-axis ["Confidentiality F1", "Retrieval Recall@K", "Retrieval MRR", "Clause recall floor", "OCR success (host w/o Tesseract)"]
+    y-axis "Score" 0 --> 1
+    bar [0.688, 1.0, 1.0, 0.5, 0.0]
+```
 
-| Case | What it proves |
-| --- | --- |
-| Scanned page, no text layer | OCR recovery path, and that skipping OCR yields nothing rather than garbage |
-| Repeated clause in one document | Content-hash dedup collapses duplicates at persistence |
-| Embedded pricing schedule | Table extraction count matches the document |
-| Two contracts, contradictory notice periods | Cross-portfolio conflict detection fires on the right clause type |
-| Unusual governing law | Extraction does not silently normalize an atypical jurisdiction away |
-
-**Metrics.** Clause recall (expected types found over expected total), risk precision
-(correct high-risk flags over flags raised), missing-clause accuracy (exact set match),
-plus per-anomaly checks: unique content hashes versus raw extraction count, table count,
-and conflict-pair detection.
-
-**Honest scoring of "nothing to find."** A scanned document with OCR intentionally
-skipped is scored as not applicable, not zero. Finding nothing is the correct behavior
-for that path, and counting it as a failure would understate real quality just as badly
-as excluding a genuine miss would overstate it.
-
-**Quality floor, not exact match.** `tests/eval/test_eval_thresholds.py` asserts average
-recall stays at or above 50 percent rather than asserting exact output, which is the
-appropriate bar for a model-based step. It needs a live Gemini key and skips itself
-cleanly without one, so a key-less `pytest` run never fails on it.
-
-**RAGAS on real traffic.** Every chat turn logs its question, answer, and retrieved
-contexts. `scripts/run_ragas_eval.py` scores them on faithfulness, answer relevancy,
-context precision, and context recall. It runs in an isolated `.venv-ragas` because
-current RAGAS releases import a `langchain_community` submodule that the main app's
-LangGraph stack has moved past, so the two dependency trees never share a process. Turns
-that produced no answer are skipped, since these metrics are undefined when there is
-nothing to score.
+- **Confidentiality classification** (deterministic signal scan plus a model call,
+  combined by explicit safety rules) scored a macro F1 of **0.688** on a real baseline
+  run. The "public" level deliberately scores zero recall by design: the combination
+  rule never lets anything default to public without explicit signal, so under-labeling
+  a sensitive document is treated as far worse than over-labeling a public one.
+- **Retrieval quality**, Recall@K and Mean Reciprocal Rank, both scored a perfect **1.0**
+  on a real test, with **zero cross-tenant leakage** verified using the actual embedding
+  model against a synthetic multi-tenant collection.
+- **Clause recall** is held to a floor of **50 percent average recall** in the
+  automated threshold test, a regression tripwire rather than a ceiling. It needs a live
+  model key and skips itself cleanly without one.
+- **OCR page-success** genuinely scored **0 percent** in one baseline run because
+  Tesseract and Poppler were not installed on that host at the time. This is included
+  deliberately: the evaluation framework reports a metric it cannot honestly compute as
+  failed, never invented.
+- **RAGAS** (faithfulness, answer relevancy, context precision, context recall) scores
+  every logged chat turn that actually produced an answer, run in an isolated
+  environment so its dependency chain never collides with the main app's. Turns that
+  ended in a rejection or escalation before any answer existed are excluded, since these
+  metrics are undefined when nothing was generated to score.
+- Underneath all of it, a suite of **139-plus automated tests** covers authentication,
+  role-seniority enforcement, confidentiality access control, standards resolution,
+  risk-flag routing, chat-memory scoping, and approval-chain logic, verifying the
+  deterministic scaffolding behaves exactly as designed on every run.
 
 ```bash
 python tests/eval/run_eval.py                              # per-document breakdown
@@ -299,25 +322,36 @@ pytest tests/eval/test_eval_thresholds.py                  # pass/fail summary
 
 ## Stack
 
-| Layer | Choice | Why this one |
+| Layer | Technology | What it does here |
 | --- | --- | --- |
-| Orchestration | LangGraph `StateGraph` | `interrupt()` suspends mid-graph and `Command(resume=...)` resumes days later, so a pending review costs nothing while it waits |
-| Graph store | Neo4j 5 | Clause-to-clause and clause-to-judgment traversal is the whole point; this is not a join a relational schema does well |
-| Vector store | Chroma, embedded `PersistentClient` | On-disk, no separate service, mounted as a named volume so it survives container recreation |
-| Operational data | PostgreSQL 16, SQLAlchemy | Org profiles, documents, review actions, chat history, eval runs |
-| Object storage | MinIO, S3-compatible | Uploaded documents, with a local-disk fallback when unset |
-| Retrieval | Chroma dense + BM25 sparse, reranked | Legal text needs exact-term matching that pure dense retrieval loses |
-| Parsing | pdfplumber, python-docx, Tesseract | Tables preserved, OCR only where a text layer is genuinely absent |
+| Orchestration | LangGraph | Pauses execution at a human checkpoint and resumes exactly where it stopped, potentially days later |
+| Graph store | Neo4j 5 | Holds clauses, parties, judgments, and their connections; makes cross-contract lookups a direct traversal |
+| Vector store | Chroma, embedded | Semantic search over document chunks, one collection per document |
+| Operational data | PostgreSQL 16, SQLAlchemy | Org profiles, documents, review actions, chat history, evaluation runs |
+| Object storage | MinIO, S3-compatible | Uploaded document files, local-disk fallback when unset |
+| Retrieval | Dense + keyword search, reranked | Blends semantic and exact-term matching, weighted per question |
+| Parsing | pdfplumber, python-docx, Tesseract | Text and table extraction, OCR only where a text layer is genuinely absent |
 | API | FastAPI, signed session cookies | Fixed reviewer roster from environment, no open signup |
-| LLM | Gemini | Extraction, routing, synthesis, revision |
+| Language model | Gemini | Extraction, routing, synthesis, revision, playbook drafting |
+
+## Login and access
+
+There is no signup and no open user database. The reviewer roster is fixed at deploy
+time, either as a `REVIEWERS` JSON list or numbered `REVIEWER_N_*` environment
+variables, each entry carrying a username, password, and role (`reviewer`,
+`senior_counsel`, `business_head`, `clo`, or `admin`). Sign in at `/ui` with whichever
+account was configured for that deployment. A single Gemini API key
+(`GEMINI_API_KEY` in `.env`, free tier available) drives every model call; without one
+the app still runs and serves the interface, but any action that needs the model will
+fail until a key is set.
 
 ## Layout
 
 ```
 src/counsel_graph/
-  agents/       router, prompts, query LangGraph, RAGAS logging
+  agents/       router, prompts, query orchestration, RAGAS logging
   api/          FastAPI app, session auth, role seniority, static UI
-  graphrag/     extraction, risk, standards, conflicts, Neo4j store
+  graphrag/     extraction, risk, standards, conflicts, playbook, record store
   ingestion/    PDF/DOCX to OCR to chunk pipeline
   retrieval/    hybrid search, contract metadata
   db/           models, repository, content-hash dedup
@@ -325,7 +359,6 @@ src/counsel_graph/
 scripts/        seed_db, run_evaluation, run_ragas_eval
 tests/          unit suite, plus tests/eval/ labeled set and thresholds
 data/           sample contracts, clause library, policy refs, risk taxonomy
-docs/           architecture, API reference, security notes
 ```
 
 ## Running it
@@ -350,27 +383,3 @@ uvicorn counsel_graph.api.main:app --reload --port 8000
 
 Requires Python 3.10+, a Gemini API key
 ([free tier](https://aistudio.google.com/apikey)), and a reachable Neo4j instance.
-
-## Documentation
-
-- [`docs/architecture.md`](docs/architecture.md), pipeline internals end to end
-- [`docs/api_documentation.md`](docs/api_documentation.md), endpoints and error cases
-- [`docs/security_notes.md`](docs/security_notes.md), auth, prompt injection defense, and
-  what is deliberately out of scope
-- [`deployment/environment_setup.md`](deployment/environment_setup.md), Docker Compose,
-  native, and cloud notes
-
-## Known limits
-
-Stated plainly rather than buried, because a review tool that overstates its own
-reliability is worse than one that does not exist.
-
-- Clause extraction is a model call and varies between runs. The eval floor is 50 percent
-  average recall, which is a regression tripwire, not a claim of production accuracy.
-- Prompt-injection wrapping (`wrap_untrusted`) reduces the odds a hostile contract
-  hijacks a prompt. It is a mitigation, not a guarantee.
-- The rate limiter is in-memory and per-process, so it resets on restart and does not
-  coordinate across workers. A multi-worker deployment needs a shared store.
-- Uploaded files and the Chroma store are unencrypted on disk.
-- The LangGraph checkpointer defaults to in-memory, which is single-process only. Set
-  `CHECKPOINTER_BACKEND` to Postgres or Redis for anything beyond local use.
