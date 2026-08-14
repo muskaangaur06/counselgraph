@@ -1,16 +1,5 @@
-# ==========================================
-# Custom Project Rules
-# ==========================================
-
 # Environment / secrets
 .env
-
-# Planning/status docs, not part of production deployment
-MASTER_BLUEPRINT.md
-IMPLEMENTATION_STATUS.md
-
-# Standalone demo site, deployed separately from the API
-demo/
 
 # Python Virtual Environments & Cache
 __pycache__/
@@ -38,9 +27,6 @@ data/eval_cache/
 .vscode/
 .idea/
 
-# ==========================================
-# Standard Python Ignore Rules
-# ==========================================
 
 # Byte-compiled / optimized / DLL files
 *.py[codz]
