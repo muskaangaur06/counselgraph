@@ -301,6 +301,7 @@ def _persist_chat_message(state: LegalAgentState, status: str, answer: Optional[
             document_id=document_id,
             organization=(doc or {}).get("org_profile_id"), jurisdiction=(doc or {}).get("geography"),
             expected_standard_source=(standards_context or {}).get("source"),
+            citations=citations,
         )
     except Exception as e:  # noqa: BLE001
         print(f"[chat_message] WARNING: RAGAS logging failed: {type(e).__name__}: {e}")

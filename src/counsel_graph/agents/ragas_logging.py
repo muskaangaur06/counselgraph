@@ -40,14 +40,22 @@ def _extract_contexts(hybrid_hits: list[dict], graph_hits: list[dict]) -> list[s
 def log_ragas_case(question: str, answer: Optional[str], hybrid_hits: list[dict], graph_hits: list[dict],
                     document_id: Optional[str] = None, organization: Optional[str] = None,
                     jurisdiction: Optional[str] = None, expected_standard_source: Optional[str] = None,
-                    reference_answer: Optional[str] = None, reference_contexts: Optional[list[str]] = None) -> None:
+                    reference_answer: Optional[str] = None, reference_contexts: Optional[list[str]] = None,
+                    citations: Optional[list[str]] = None) -> None:
     """Appends one section-24.2-shaped record. Never raises -- logging failures
     must not break the chat turn itself, same reasoning as every other
-    best-effort side write in this pipeline (audit records, graph updates)."""
+    best-effort side write in this pipeline (audit records, graph updates).
+
+    citations is the same list already persisted to chat_message by the caller
+    -- record_chat_message() gets it, this log did not, which meant
+    citation_metrics.run_citation_eval() always saw an empty list and scored
+    citation_recall as 0.0 regardless of whether the answer actually cited
+    anything."""
     record = {
         "question": question,
         "answer": answer,
         "contexts": _extract_contexts(hybrid_hits, graph_hits),
+        "citations": citations or [],
         "reference_answer": reference_answer,
         "reference_contexts": reference_contexts or [],
         "document_id": document_id,
