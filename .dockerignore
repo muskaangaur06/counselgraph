@@ -15,4 +15,4 @@ data/uploads/
 data/chroma_db/
 data/eval_cache/
 *.md
-.claude/
+
