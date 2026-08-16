@@ -1,5 +1,6 @@
 # CounselGraph
 
+[Demonstration Video](https://drive.google.com/file/d/1o5ROZiX2ZzdXzafnaSBss35yR-KEFNO1/view?usp=sharing)
 Contract review where the model drafts and a named human decides. Upload a PDF or DOCX,
 and the pipeline OCRs what needs OCRing, extracts clauses, flags risk, detects conflicts
 across your whole portfolio, and finds what the contract is missing. Ask a question, and
